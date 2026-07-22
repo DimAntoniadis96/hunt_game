@@ -18,6 +18,7 @@ import {
   MAX_Y,
   MIN_PLAYERS_TO_START,
   MIN_Y,
+  PLAYER_EYE_HEIGHT,
   PLAYER_MAX_HEALTH,
   PLAYER_RADIUS,
   PLAYER_SPRINT_SPEED,
@@ -48,9 +49,14 @@ import {
 } from "@mimic/shared";
 import { GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
+import { resolveShot, type CylinderTarget } from "./hitscan.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
 const COPY_RANGE = 4.5;
+/** Enlarge hit cylinders slightly so box-corner shots register fairly. */
+const HIT_RADIUS_BUFFER = 1.15;
+/** Hit-cylinder height for an un-disguised prop (the humanoid body). */
+const PLAYER_HIT_HEIGHT = 1.8;
 
 interface JoinOptions {
   name?: string;
@@ -301,49 +307,45 @@ export class GameRoom extends Room<GameState> {
     if (player.reloading || player.ammo <= 0) return;
     if (!isFiniteVec(p?.ox, p?.oy, p?.oz) || !isFiniteVec(p?.dx, p?.dy, p?.dz)) return;
 
+    // Anti-cheat: the shot must originate near the shooter's authoritative eye
+    // position (stops "shoot from anywhere" spoofing). Generous to tolerate lag
+    // and mid-jump vertical movement.
+    const eyeY = player.y + PLAYER_EYE_HEIGHT;
+    if (Math.hypot(p.ox - player.x, p.oz - player.z) > 3.0 || Math.abs(p.oy - eyeY) > 4.0) return;
+
     const now = Date.now();
     if (now - m.lastShotAt < WEAPON_FIRE_COOLDOWN_MS) return; // fire-rate enforcement
     m.lastShotAt = now;
     player.ammo = Math.max(0, player.ammo - 1);
 
-    // Normalize direction defensively (never trust client magnitude).
-    const dl = Math.hypot(p.dx, p.dy, p.dz) || 1;
-    const dir = { x: p.dx / dl, y: p.dy / dl, z: p.dz / dl };
-
     const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
 
-    // Nearest disguised-player hit.
-    let bestPlayerT = Infinity;
-    let victim: Player | undefined;
+    // Build authoritative target cylinders. Players use their ACTUAL height
+    // (baseY = feet), so a prop standing on furniture or mid-jump is hittable.
+    const playerTargets: CylinderTarget[] = [];
     this.state.players.forEach((other) => {
       if (other === player || !other.alive || other.team !== Team.Props) return;
       const model = PROP_MODELS[other.propModel];
-      const radius = model ? model.radius : PLAYER_RADIUS;
-      const height = model ? model.height : 1.8;
-      const t = rayCylinder(p.ox, p.oy, p.oz, dir, other.x, other.z, radius, 0, height);
-      if (t !== null && t < bestPlayerT && t <= WEAPON_RANGE) {
-        bestPlayerT = t;
-        victim = other;
-      }
+      const radius = (model ? model.radius : PLAYER_RADIUS) * HIT_RADIUS_BUFFER;
+      const height = model ? model.height : PLAYER_HIT_HEIGHT;
+      playerTargets.push({ id: other.id, x: other.x, z: other.z, baseY: other.y, radius, height });
     });
+    const propTargets: CylinderTarget[] = map.props
+      .map((spawn) => {
+        const model = PROP_MODELS[spawn.modelKey];
+        return model ? { id: spawn.id, x: spawn.x, z: spawn.z, baseY: 0, radius: model.radius, height: model.height } : null;
+      })
+      .filter((t): t is CylinderTarget => t !== null);
 
-    // Nearest static-prop (furniture) hit -> wrong-shot penalty.
-    let bestWorldT = Infinity;
-    for (const spawn of map.props) {
-      const model = PROP_MODELS[spawn.modelKey];
-      if (!model) continue;
-      const t = rayCylinder(p.ox, p.oy, p.oz, dir, spawn.x, spawn.z, model.radius, 0, model.height);
-      if (t !== null && t < bestWorldT && t <= WEAPON_RANGE) bestWorldT = t;
-    }
+    const res = resolveShot({ ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz }, playerTargets, propTargets, WEAPON_RANGE);
 
-    if (victim && bestPlayerT <= bestWorldT) {
-      const hx = p.ox + dir.x * bestPlayerT;
-      const hy = p.oy + dir.y * bestPlayerT;
-      const hz = p.oz + dir.z * bestPlayerT;
+    if (res.kind === "hit" && res.targetId) {
+      const victim = this.state.players.get(res.targetId);
+      if (!victim) return;
       victim.health = Math.max(0, victim.health - WEAPON_DAMAGE);
       const killed = victim.health <= 0;
-      client.send(ServerMessage.ShotResult, { hit: true, wrong: false, targetId: victim.id, damage: WEAPON_DAMAGE, killed, hx, hy, hz });
-      const victimClient = this.clients.find((c) => c.sessionId === victim!.id);
+      client.send(ServerMessage.ShotResult, { hit: true, wrong: false, targetId: victim.id, damage: WEAPON_DAMAGE, killed, hx: res.hx, hy: res.hy, hz: res.hz });
+      const victimClient = this.clients.find((c) => c.sessionId === victim.id);
       victimClient?.send(ServerMessage.Hit, { amount: WEAPON_DAMAGE, health: victim.health, byId: player.id });
       if (killed) {
         victim.alive = false;
@@ -357,14 +359,11 @@ export class GameRoom extends Room<GameState> {
       return;
     }
 
-    if (isFinite(bestWorldT) && bestWorldT <= WEAPON_RANGE) {
+    if (res.kind === "wrong") {
       // Shot a real object: self-penalty.
       player.health = Math.max(1, player.health - WRONG_SHOT_SELF_DAMAGE);
       player.score = Math.max(0, player.score - SCORE_WRONG_SHOT_PENALTY);
-      const hx = p.ox + dir.x * bestWorldT;
-      const hy = p.oy + dir.y * bestWorldT;
-      const hz = p.oz + dir.z * bestWorldT;
-      client.send(ServerMessage.ShotResult, { hit: false, wrong: true, hx, hy, hz });
+      client.send(ServerMessage.ShotResult, { hit: false, wrong: true, hx: res.hx, hy: res.hy, hz: res.hz });
       return;
     }
 
@@ -650,39 +649,6 @@ function clampPitch(p: number): number {
 
 function isFiniteVec(a: number, b: number, c: number): boolean {
   return isFinite(a) && isFinite(b) && isFinite(c);
-}
-
-/**
- * Ray vs infinite-then-clamped vertical cylinder. Returns the nearest positive
- * parametric distance `t` (metres, since dir is unit length) at which the ray
- * enters the cylinder between y0..y1, or null on miss.
- */
-function rayCylinder(
-  ox: number,
-  oy: number,
-  oz: number,
-  dir: { x: number; y: number; z: number },
-  cx: number,
-  cz: number,
-  radius: number,
-  y0: number,
-  y1: number,
-): number | null {
-  const a = dir.x * dir.x + dir.z * dir.z;
-  if (a < 1e-8) return null; // ray is vertical; ignore for prototype
-  const ox2 = ox - cx;
-  const oz2 = oz - cz;
-  const b = 2 * (ox2 * dir.x + oz2 * dir.z);
-  const c = ox2 * ox2 + oz2 * oz2 - radius * radius;
-  const disc = b * b - 4 * a * c;
-  if (disc < 0) return null;
-  const sq = Math.sqrt(disc);
-  let t = (-b - sq) / (2 * a);
-  if (t < 0) t = (-b + sq) / (2 * a);
-  if (t < 0) return null;
-  const hy = oy + dir.y * t;
-  if (hy < y0 || hy > y1) return null;
-  return t;
 }
 
 // Referenced so tree-shakers/linters keep the imports meaningful in future steps.

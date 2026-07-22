@@ -1,4 +1,4 @@
-import { UniversalCamera, Vector3, Scene, Mesh, MeshBuilder } from "@babylonjs/core";
+import { UniversalCamera, Vector3, Scene, Mesh, MeshBuilder, Ray, AbstractMesh } from "@babylonjs/core";
 import {
   GRAVITY,
   PLAYER_EYE_HEIGHT,
@@ -9,6 +9,11 @@ import {
 } from "@mimic/shared";
 
 const HALF = PLAYER_EYE_HEIGHT / 2;
+const DOWN = new Vector3(0, -1, 0);
+/** How far below the feet we still count as "standing on a surface" (metres). */
+const GROUND_PROBE = 0.3;
+/** Max fall speed (m/s) so a long drop doesn't tunnel through geometry. */
+const TERMINAL_VY = -32;
 
 export type CameraMode = "fp" | "tp";
 
@@ -21,13 +26,17 @@ export type CameraMode = "fp" | "tp";
 export class InputController {
   readonly camera: UniversalCamera;
   private collider: Mesh;
+  private scene: Scene;
   private canvas: HTMLCanvasElement;
   private keys = new Set<string>();
   private yaw = 0;
   private pitch = 0;
   private vy = 0;
   private grounded = true;
-  private frozen = false;
+  private frozen = false; // blocks walking (WASD)
+  private jumpAllowed = true; // decoupled: every alive player can hop
+  private rotationLocked = false; // prop: freeze body facing (still can look/move)
+  private lockedYaw = 0;
   private sensitivity = 0.0022;
   private mode: CameraMode = "fp";
   private tpDistance = 5.0;
@@ -37,6 +46,7 @@ export class InputController {
 
   constructor(scene: Scene, canvas: HTMLCanvasElement, spawn: { x: number; z: number; ry: number }) {
     this.canvas = canvas;
+    this.scene = scene;
 
     this.collider = MeshBuilder.CreateCapsule("playerCollider", { radius: PLAYER_RADIUS, height: PLAYER_EYE_HEIGHT }, scene);
     this.collider.isVisible = false;
@@ -70,8 +80,20 @@ export class InputController {
   get locked(): boolean {
     return document.pointerLockElement === this.canvas;
   }
+
+  /**
+   * The orientation the player's BODY faces (what other players see and what the
+   * local prop model uses). When rotation is locked the body stays frozen while
+   * the camera can still look around — so a disguised prop stops spinning with
+   * the mouse and sits like a real object.
+   */
   get bodyYaw(): number {
-    return this.yaw;
+    return this.rotationLocked ? this.lockedYaw : this.yaw;
+  }
+
+  setRotationLocked(v: boolean) {
+    if (v && !this.rotationLocked) this.lockedYaw = this.yaw; // freeze at current facing
+    this.rotationLocked = v;
   }
 
   requestLock() {
@@ -87,7 +109,11 @@ export class InputController {
 
   setFrozen(v: boolean) {
     this.frozen = v;
-    if (v) this.keys.clear();
+  }
+
+  /** Whether the player may jump (true for any alive player, even if frozen). */
+  setJumpAllowed(v: boolean) {
+    this.jumpAllowed = v;
   }
 
   /** Feet position (y = 0 on the floor) — used to place the local player body. */
@@ -170,26 +196,51 @@ export class InputController {
     if (move.lengthSquared() > 1) move.normalize();
     move.scaleInPlace(speed * dt);
 
-    // Jump + gravity — available to every player whenever they're not frozen.
-    if (!this.frozen && this.keys.has("Space") && this.grounded) {
+    // Jump + gravity — available to every alive player, even a frozen hunter
+    // during Prep (they can hop in place but not walk).
+    if (this.jumpAllowed && this.keys.has("Space") && this.grounded) {
       this.vy = PLAYER_JUMP_SPEED;
       this.grounded = false;
       this.onJump?.();
     }
     this.vy += GRAVITY * dt;
+    if (this.vy < TERMINAL_VY) this.vy = TERMINAL_VY;
 
+    // Horizontal collide-and-slide (walls + prop sides) is done by the ellipsoid.
     this.collider.moveWithCollisions(new Vector3(move.x, this.vy * dt, move.z));
 
-    if (this.collider.position.y <= HALF) {
-      this.collider.position.y = HALF;
+    // Ground detection by a short downward raycast so the player stands ON the
+    // real surface beneath them — the floor OR the top of a prop — instead of
+    // being snapped to floor level (which used to clip props into objects).
+    const surfaceY = this.probeGround();
+    if (this.vy <= 0 && surfaceY !== null) {
+      this.collider.position.y = surfaceY + HALF; // feet exactly on the surface
       this.vy = 0;
       this.grounded = true;
     } else {
       this.grounded = false;
     }
 
+    // Safety net: never fall through the world floor.
+    if (this.collider.position.y < HALF) {
+      this.collider.position.y = HALF;
+      this.vy = 0;
+      this.grounded = true;
+    }
+
     this.updateCamera();
     return moving;
+  }
+
+  /**
+   * Casts a short ray straight down from the feet. Returns the Y of the nearest
+   * collidable surface (floor/wall/prop) within reach, or null if airborne.
+   */
+  private probeGround(): number | null {
+    const origin = new Vector3(this.collider.position.x, this.collider.position.y - HALF + 0.15, this.collider.position.z);
+    const ray = new Ray(origin, DOWN, GROUND_PROBE);
+    const pick = this.scene.pickWithRay(ray, (m: AbstractMesh) => m.checkCollisions && m !== this.collider && m.isPickable);
+    return pick && pick.hit && pick.pickedPoint ? pick.pickedPoint.y : null;
   }
 
   snapshot(moving: boolean): InputPayload {
@@ -198,7 +249,7 @@ export class InputController {
       x: this.collider.position.x,
       y: this.collider.position.y - HALF,
       z: this.collider.position.z,
-      ry: this.yaw,
+      ry: this.bodyYaw, // send locked facing so others see the frozen disguise
       rp: this.pitch,
       moving,
       grounded: this.grounded,

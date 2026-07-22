@@ -25,7 +25,7 @@ export const ROUNDS_PER_MATCH = 4; // teams swap each round
 /** Movement (units = metres). Server rejects motion faster than this. */
 export const PLAYER_WALK_SPEED = 5.0; // m/s
 export const PLAYER_SPRINT_SPEED = 7.5; // m/s
-export const PLAYER_JUMP_SPEED = 6.0; // m/s initial vertical velocity
+export const PLAYER_JUMP_SPEED = 7.2; // m/s initial vertical velocity (~1.4m hop)
 export const GRAVITY = -18.0; // m/s^2 (game-y, snappier than real gravity)
 /** Extra slack multiplier before the server flags a move as a speed-hack. */
 export const SPEED_TOLERANCE = 1.35;

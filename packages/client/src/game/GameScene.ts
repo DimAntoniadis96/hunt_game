@@ -16,6 +16,7 @@ import {
   Phase,
   ServerMessage,
   Team,
+  WEAPON_RELOAD_MS,
   type PlayerView,
 } from "@mimic/shared";
 import type { Room } from "colyseus.js";
@@ -52,6 +53,10 @@ export class GameScene {
 
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
+  private lastShotTime = -9999;
+  private reloadStart = 0;
+  private prevReloading = false;
+  private prevLocked = false;
 
   onLockLost?: () => void;
 
@@ -135,6 +140,42 @@ export class GameScene {
     root.setEnabled(false);
   }
 
+  /** Animates the first-person gun: recoil on fire + a visible reload motion. */
+  private animateGun(me: PlayerView) {
+    if (!this.gunRoot) return;
+    const now = performance.now();
+
+    // Detect the start of a reload to seed the animation + play the sound once.
+    if (me.reloading && !this.prevReloading) {
+      this.reloadStart = now;
+      this.audio.play("reload");
+    }
+    this.prevReloading = me.reloading;
+
+    // Base rest pose.
+    let x = 0.34;
+    let y = -0.32;
+    let z = 0.9;
+    let rotX = 0;
+
+    // Recoil kick (short).
+    const rt = (now - this.lastShotTime) / 90;
+    if (rt >= 0 && rt < 1) z = 0.9 - 0.14 * (1 - rt);
+
+    // Reload: dip the gun down and tilt it, over the full reload duration.
+    if (me.reloading) {
+      const p = Math.min(1, (now - this.reloadStart) / WEAPON_RELOAD_MS);
+      const s = Math.sin(p * Math.PI); // 0 -> 1 -> 0 arc
+      y = -0.32 - 0.2 * s;
+      x = 0.34 - 0.06 * s;
+      z = 0.9 - 0.05 * s;
+      rotX = 0.85 * s;
+    }
+
+    this.gunRoot.position.set(x, y, z);
+    this.gunRoot.rotation.set(rotX, 0, 0);
+  }
+
   // ---- per-frame loop -----------------------------------------------------
 
   private frame() {
@@ -161,9 +202,20 @@ export class GameScene {
     }
     const showGun = !!me && me.team === Team.Hunters && me.alive && this.currentMode === "fp";
     this.gunRoot?.setEnabled(showGun);
+    if (showGun && me) this.animateGun(me);
 
     const frozen = !me || !me.alive || (phase === Phase.Prep && me.team === Team.Hunters);
     this.input.setFrozen(frozen);
+    // Jump is allowed for any alive player (even a frozen hunter during Prep).
+    this.input.setJumpAllowed(!!me && me.alive);
+    // Rotation lock: freeze the prop's facing so mouse-look stops spinning it.
+    const wantLock = !!me && me.team === Team.Props && me.rotationLocked;
+    this.input.setRotationLocked(wantLock);
+    if (me && me.team === Team.Props && me.rotationLocked !== this.prevLocked) {
+      this.hud.banner(me.rotationLocked ? "Rotation locked 🔒" : "Rotation unlocked 🔓", 1000);
+      this.audio.play("ui");
+    }
+    this.prevLocked = me?.rotationLocked ?? false;
 
     const moving = this.input.update(dt);
 
@@ -205,9 +257,9 @@ export class GameScene {
           v = { node, key: desiredKey };
           this.visuals.set(id, v);
         }
-        // Follow the client-predicted position for responsiveness.
+        // Follow the client-predicted position/height for responsiveness.
         const feet = this.input.getFeet();
-        v.node.position.set(feet.x, 0, feet.z);
+        v.node.position.set(feet.x, feet.y, feet.z);
         v.node.rotation.y = this.input.bodyYaw;
         return;
       }
@@ -223,10 +275,14 @@ export class GameScene {
         const node = p.propModel
           ? createPropVisual(this.scene, p.propModel, `p_${id}`)
           : createHunterVisual(this.scene, `p_${id}`);
+        // Make OTHER players solid so a hunter bumps into / stands on a hiding
+        // prop just like a real object (no more sinking through it). The local
+        // player's own body is never collidable (would trap its own collider).
+        node.getChildMeshes().forEach((m) => (m.checkCollisions = true));
         v = { node, key: desiredKey };
         this.visuals.set(id, v);
       }
-      const target = new Vector3(p.x, 0, p.z);
+      const target = new Vector3(p.x, p.y, p.z);
       v.node.position = Vector3.Lerp(v.node.position, target, Math.min(1, dt * 12));
       v.node.rotation.y = p.ry;
     });
@@ -329,9 +385,8 @@ export class GameScene {
       this.gunMuzzle.computeWorldMatrix(true);
       from = this.gunMuzzle.getAbsolutePosition().clone();
       this.spawnMuzzleFlash(from);
-      this.gunRoot.position.z = 0.76; // recoil kick
-      window.setTimeout(() => this.gunRoot && (this.gunRoot.position.z = 0.9), 60);
     }
+    this.lastShotTime = performance.now(); // recoil handled in animateGun()
     this.spawnTracer(from, o.add(d.scale(45)));
   }
 
