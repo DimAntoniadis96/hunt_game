@@ -1,0 +1,25 @@
+# Local / single-node deployment of the MimicHunt game server.
+# Build the client separately (npm run build) and host packages/client/dist on a CDN.
+services:
+  game-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+    image: mimichunt-server:latest
+    ports:
+      - "2567:2567"
+    environment:
+      PORT: "2567"
+      NODE_ENV: "production"
+      # Set this to your real site origin(s) in production, comma-separated.
+      CORS_ORIGIN: "http://localhost:5173"
+    restart: unless-stopped
+
+  # ---- Optional: enable only when scaling to multiple server instances. ----
+  # Uncomment, add the Redis driver/presence in packages/server/src/index.ts,
+  # and point instances at this host for cluster-wide matchmaking + code lookup.
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped

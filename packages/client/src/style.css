@@ -1,0 +1,478 @@
+:root {
+  --bg: #0d1117;
+  --panel: rgba(18, 24, 34, 0.92);
+  --panel-solid: #121822;
+  --accent: #37d9a0;
+  --accent-2: #ff7043;
+  --danger: #ef5350;
+  --text: #e7edf3;
+  --muted: #8b98a8;
+  --border: #263141;
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  user-select: none;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  touch-action: none;
+}
+
+#ui-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: radial-gradient(1200px 600px at 50% -10%, #16324a 0%, #0d1117 60%);
+}
+
+.card {
+  width: min(440px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.brand h1 {
+  font-size: 30px;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+.brand .dot {
+  color: var(--accent);
+}
+.tagline {
+  color: var(--muted);
+  margin: 0 0 22px;
+  font-size: 14px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin: 14px 0 6px;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0b0f16;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+.row > * {
+  flex: 1;
+}
+
+button {
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #04120d;
+  background: var(--accent);
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+button:hover {
+  filter: brightness(1.08);
+}
+button:active {
+  transform: translateY(1px);
+}
+button.secondary {
+  background: #223042;
+  color: var(--text);
+}
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mt {
+  margin-top: 16px;
+}
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 10px;
+  min-height: 18px;
+}
+
+/* ---- Lobby ---- */
+.lobby-players {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.lobby-players li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: #0b0f16;
+}
+.badge {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.badge.ready {
+  background: rgba(55, 217, 160, 0.15);
+  color: var(--accent);
+}
+.badge.waiting {
+  background: rgba(139, 152, 168, 0.15);
+  color: var(--muted);
+}
+.code-pill {
+  font-family: "Cascadia Code", ui-monospace, monospace;
+  font-size: 22px;
+  letter-spacing: 4px;
+  background: #0b0f16;
+  border: 1px dashed var(--accent);
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: center;
+  color: var(--accent);
+}
+
+/* ---- HUD ---- */
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+.hud-top {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 18px;
+}
+.hud-top .phase {
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hud-top .timer {
+  font-size: 22px;
+  font-weight: 700;
+}
+.hud-top .sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+.team-props {
+  color: var(--accent);
+}
+.team-hunters {
+  color: var(--accent-2);
+}
+
+.crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.crosshair::before,
+.crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+}
+.crosshair::before {
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+.crosshair::after {
+  top: 50%;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  transform: translateY(-50%);
+}
+.crosshair.hit {
+  filter: drop-shadow(0 0 4px var(--danger));
+}
+
+.hud-bottom-left {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 160px;
+}
+.health-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: #2a1414;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.health-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef5350, #ffb300);
+  transition: width 0.15s ease;
+}
+.hud-bottom-right {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  text-align: right;
+}
+.ammo {
+  font-size: 28px;
+  font-weight: 800;
+}
+.ammo .mag {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.killfeed {
+  position: absolute;
+  top: 70px;
+  right: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.killfeed .entry {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  animation: fade 6s forwards;
+}
+@keyframes fade {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.banner {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 30px;
+  font-size: 22px;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.banner.show {
+  opacity: 1;
+}
+
+.prompt {
+  position: absolute;
+  bottom: 28%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.prompt.show {
+  opacity: 1;
+}
+.prompt kbd {
+  background: #1c2431;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-family: monospace;
+}
+
+.ping {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel);
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* ---- Scoreboard ---- */
+.scoreboard {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 8, 12, 0.6);
+}
+.scoreboard.show {
+  display: flex;
+}
+.scoreboard .sb-card {
+  width: min(560px, 92vw);
+  background: var(--panel-solid);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+}
+.sb-teams {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 14px;
+  font-size: 18px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th,
+td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* ---- Overlays: click-to-play, errors ---- */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: rgba(5, 8, 12, 0.55);
+  text-align: center;
+}
+.overlay .msg {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 32px;
+  max-width: 440px;
+}
+.hidden {
+  display: none !important;
+}
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto 14px;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

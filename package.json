@@ -1,0 +1,28 @@
+{
+  "name": "hunt-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MimicHunt — a browser-based multiplayer prop-hunt game (authoritative server).",
+  "workspaces": [
+    "packages/shared",
+    "packages/server",
+    "packages/client"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace @mimic/shared",
+    "dev": "npm run build:shared && run-p -l dev:shared dev:server dev:client",
+    "dev:shared": "npm run dev --workspace @mimic/shared",
+    "dev:server": "npm run dev --workspace @mimic/server",
+    "dev:client": "npm run dev --workspace @mimic/client",
+    "build": "npm run build:shared && npm run build --workspace @mimic/client && npm run build --workspace @mimic/server",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "start": "npm run start --workspace @mimic/server"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

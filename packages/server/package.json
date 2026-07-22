@@ -1,0 +1,31 @@
+{
+  "name": "@mimic/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "npm run build && run-p -l dev:watch dev:serve",
+    "dev:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "dev:serve": "node --enable-source-maps --watch-path=./dist dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --enable-source-maps dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/core": "^0.15.0",
+    "@colyseus/schema": "^2.0.0",
+    "@colyseus/ws-transport": "^0.15.0",
+    "@mimic/shared": "*",
+    "colyseus": "^0.15.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.5.4"
+  }
+}
