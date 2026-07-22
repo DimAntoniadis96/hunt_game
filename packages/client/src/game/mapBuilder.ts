@@ -14,7 +14,7 @@ import { MapDefinition, PROP_MODELS } from "@mimic/shared";
 
 const matCache = new Map<string, StandardMaterial>();
 
-function mat(scene: Scene, hex: string, emissive = 0.08): StandardMaterial {
+function mat(scene: Scene, hex: string, emissive = 0.16): StandardMaterial {
   const key = `${hex}:${emissive}`;
   const cached = matCache.get(key);
   if (cached) return cached;
@@ -22,6 +22,7 @@ function mat(scene: Scene, hex: string, emissive = 0.08): StandardMaterial {
   const c = Color3.FromHexString(hex);
   m.diffuseColor = c;
   m.emissiveColor = c.scale(emissive);
+  m.ambientColor = c; // lets scene.ambientColor lift the shadows
   m.specularColor = new Color3(0.15, 0.15, 0.15);
   matCache.set(key, m);
   return m;
@@ -29,22 +30,23 @@ function mat(scene: Scene, hex: string, emissive = 0.08): StandardMaterial {
 
 /** Floor, walls, lights, ambient. Enables the built-in collision system. */
 export function buildEnvironment(scene: Scene, map: MapDefinition): Mesh[] {
-  scene.clearColor = new Color4(0.05, 0.07, 0.1, 1);
+  scene.clearColor = new Color4(0.09, 0.11, 0.15, 1);
+  scene.ambientColor = new Color3(0.35, 0.37, 0.42);
   scene.collisionsEnabled = true;
   scene.gravity = new Vector3(0, -0.6, 0);
 
   const hemi = new HemisphericLight("hemi", new Vector3(0.2, 1, 0.1), scene);
-  hemi.intensity = 0.75;
-  hemi.groundColor = new Color3(0.2, 0.22, 0.26);
+  hemi.intensity = 1.15;
+  hemi.groundColor = new Color3(0.32, 0.34, 0.4);
 
   const dir = new DirectionalLight("dir", new Vector3(-0.5, -1, -0.3), scene);
   dir.position = new Vector3(20, 30, 20);
-  dir.intensity = 0.6;
+  dir.intensity = 0.9;
 
   const colliders: Mesh[] = [];
 
   const floor = MeshBuilder.CreateGround("floor", { width: map.width, height: map.depth }, scene);
-  floor.material = mat(scene, "#2b3440", 0.02);
+  floor.material = mat(scene, "#3a4655", 0.05);
   floor.checkCollisions = true;
   colliders.push(floor);
 
