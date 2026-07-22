@@ -44,7 +44,7 @@ export class GameState extends Schema {
   @type("number") roundsPerMatch = 4;
   /** Server epoch-ms when the current phase ends (client renders countdown). */
   @type("number") phaseEndsAt = 0;
-  @type("string") mapId = "depot7";
+  @type("string") mapId = "backyard";
   @type("number") propsScore = 0;
   @type("number") huntersScore = 0;
   @type("string") lastResult: RoundResult = RoundResult.None;
