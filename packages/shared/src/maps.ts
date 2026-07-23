@@ -88,6 +88,20 @@ export const PROP_MODELS: Record<string, PropModel> = {
   ac_unit: { key: "ac_unit", label: "AC Unit", radius: 0.55, height: 0.8, color: "#b0b6bd", disguiseAllowed: true },
   planter: { key: "planter", label: "Planter Box", radius: 0.6, height: 0.6, color: "#7a5230", disguiseAllowed: true },
 
+  // ---- Fun / whimsical (great for decoy clusters) ----
+  flamingo: { key: "flamingo", label: "Pink Flamingo", radius: 0.32, height: 1.2, color: "#ff8fbf", disguiseAllowed: true },
+  rubber_duck: { key: "rubber_duck", label: "Giant Rubber Duck", radius: 0.5, height: 0.85, color: "#ffd92e", disguiseAllowed: true },
+  beach_ball: { key: "beach_ball", label: "Beach Ball", radius: 0.45, height: 0.9, color: "#e74c3c", disguiseAllowed: true },
+  bbq_grill: { key: "bbq_grill", label: "BBQ Grill", radius: 0.5, height: 1.05, color: "#2b2b2b", disguiseAllowed: true },
+  watering_can: { key: "watering_can", label: "Watering Can", radius: 0.38, height: 0.65, color: "#3fa07f", disguiseAllowed: true },
+  wheelbarrow: { key: "wheelbarrow", label: "Wheelbarrow", radius: 0.6, height: 0.7, color: "#c0392b", disguiseAllowed: true },
+  pumpkin: { key: "pumpkin", label: "Pumpkin", radius: 0.45, height: 0.55, color: "#e67e22", disguiseAllowed: true },
+  soccer_ball: { key: "soccer_ball", label: "Soccer Ball", radius: 0.34, height: 0.68, color: "#ecf0f1", disguiseAllowed: true },
+  snowman: { key: "snowman", label: "Snowman (in July?!)", radius: 0.5, height: 1.6, color: "#f4f7fb", disguiseAllowed: true },
+  cactus: { key: "cactus", label: "Potted Cactus", radius: 0.35, height: 1.15, color: "#3f8f4f", disguiseAllowed: true },
+  lawn_chair: { key: "lawn_chair", label: "Lawn Chair", radius: 0.55, height: 0.72, color: "#2e86c1", disguiseAllowed: true },
+  dog_bowl: { key: "dog_bowl", label: "Dog Bowl", radius: 0.36, height: 0.34, color: "#7f8c8d", disguiseAllowed: true },
+
   // Present in the world but NOT allowed as a disguise (too small / would be unfair).
   bolt: { key: "bolt", label: "Bolt", radius: 0.05, height: 0.05, color: "#888888", disguiseAllowed: false },
 };
@@ -143,61 +157,131 @@ export const BACKYARD: MapDefinition = {
   id: "backyard",
   displayName: "Sunnyside Yard",
   theme: "backyard",
-  width: 44,
-  depth: 44,
+  width: 84,
+  depth: 84,
   wallHeight: 2,
-  bounds: { minX: -21, maxX: 21, minZ: -21, maxZ: 17.5 },
-  // Hunters break out near the south gate.
+  // Big fully-fenced yard; the house sits inside the north edge.
+  bounds: { minX: -38, maxX: 38, minZ: -38, maxZ: 30 },
+  // Hunters break out from the south gate.
   hunterSpawns: [
-    { x: 0, y: 0, z: -18.5, ry: 0 },
-    { x: -2.5, y: 0, z: -18.5, ry: 0 },
-    { x: 2.5, y: 0, z: -18.5, ry: 0 },
-    { x: -5, y: 0, z: -18.5, ry: 0 },
-    { x: 5, y: 0, z: -18.5, ry: 0 },
-    { x: 0, y: 0, z: -16.5, ry: 0 },
+    { x: -9, y: 0, z: -35, ry: 0 },
+    { x: -6, y: 0, z: -35, ry: 0 },
+    { x: -3, y: 0, z: -35, ry: 0 },
+    { x: 0, y: 0, z: -35, ry: 0 },
+    { x: 3, y: 0, z: -35, ry: 0 },
+    { x: 6, y: 0, z: -35, ry: 0 },
+    { x: 9, y: 0, z: -35, ry: 0 },
+    { x: 0, y: 0, z: -33, ry: 0 },
   ],
-  // Props scatter into the yard to hide.
+  // Props scatter across the zones to hide.
   propSpawns: [
-    { x: 10, y: 0, z: -4, ry: Math.PI },
-    { x: -10, y: 0, z: -2, ry: Math.PI },
-    { x: 6, y: 0, z: 8, ry: Math.PI },
-    { x: -6, y: 0, z: 6, ry: Math.PI },
-    { x: 14, y: 0, z: 3, ry: Math.PI },
-    { x: -14, y: 0, z: -8, ry: Math.PI },
+    { x: 0, y: 0, z: 0, ry: Math.PI },
+    { x: 12, y: 0, z: 10, ry: Math.PI },
+    { x: -12, y: 0, z: 8, ry: Math.PI },
+    { x: 22, y: 0, z: -4, ry: Math.PI },
+    { x: -22, y: 0, z: -4, ry: Math.PI },
+    { x: 10, y: 0, z: 20, ry: Math.PI },
+    { x: -10, y: 0, z: 20, ry: Math.PI },
+    { x: 24, y: 0, z: -22, ry: Math.PI },
   ],
   props: [
-    // Front / south (near the gate)
-    { id: "b01", modelKey: "mailbox", x: -18, y: 0, z: -18.5, ry: 0 },
-    { id: "b02", modelKey: "fire_hydrant", x: 18, y: 0, z: -18.5, ry: 0 },
-    { id: "b03", modelKey: "traffic_cone", x: 8, y: 0, z: -16, ry: 0 },
-    { id: "b04", modelKey: "bucket", x: 6, y: 0, z: -14, ry: 0 },
-    // Work corner / shed (south-west)
-    { id: "b05", modelKey: "propane_tank", x: -16.5, y: 0, z: -16.5, ry: 0 },
-    { id: "b06", modelKey: "crate_large", x: -15, y: 0, z: -14.5, ry: 0.4 },
-    { id: "b07", modelKey: "crate_small", x: -13.4, y: 0, z: -15, ry: 0.9 },
-    { id: "b08", modelKey: "tire", x: -17.5, y: 0, z: -13, ry: 0 },
-    { id: "b09", modelKey: "barrel", x: 12, y: 0, z: -13.5, ry: 0 },
-    // Garden beds / mid-yard
-    { id: "b10", modelKey: "bird_bath", x: 0, y: 0, z: 0, ry: 0 },
-    { id: "b11", modelKey: "rock", x: -3, y: 0, z: 3.2, ry: 0.5 },
-    { id: "b12", modelKey: "rock", x: -1.8, y: 0, z: 4.4, ry: 1.4 },
-    { id: "b13", modelKey: "garden_gnome", x: -4.2, y: 0, z: 5, ry: 0 },
-    { id: "b14", modelKey: "bench", x: -12, y: 0, z: 9, ry: 0.2 },
-    { id: "b15", modelKey: "dog_house", x: 17, y: 0, z: -8, ry: -0.6 },
-    // Bushes along the fences
-    { id: "b16", modelKey: "bush", x: 19, y: 0, z: 5, ry: 0 },
-    { id: "b17", modelKey: "bush", x: 19, y: 0, z: -2, ry: 0 },
-    { id: "b18", modelKey: "bush", x: -19, y: 0, z: 8, ry: 0 },
-    { id: "b19", modelKey: "bush", x: -19, y: 0, z: 1, ry: 0 },
-    { id: "b20", modelKey: "bush", x: 15, y: 0, z: 11, ry: 0 },
-    // Patio / near the house (north)
-    { id: "b21", modelKey: "trash_can", x: 10, y: 0, z: 14.5, ry: 0 },
-    { id: "b22", modelKey: "trash_can", x: 11.2, y: 0, z: 14.5, ry: 0 },
-    { id: "b23", modelKey: "ac_unit", x: -14, y: 0, z: 15, ry: 0 },
-    { id: "b24", modelKey: "cooler", x: 4, y: 0, z: 13, ry: 0.3 },
-    { id: "b25", modelKey: "flower_pot", x: -8, y: 0, z: 14.5, ry: 0 },
-    { id: "b26", modelKey: "flower_pot", x: -6.7, y: 0, z: 14.5, ry: 0 },
-    { id: "b27", modelKey: "planter", x: 13.5, y: 0, z: 14, ry: 0 },
+    // ---- Patio / near the house (north, z ~ 22-28) ----
+    { id: "b01", modelKey: "bbq_grill", x: 7, y: 0, z: 25, ry: 0 },
+    { id: "b02", modelKey: "cooler", x: 10.5, y: 0, z: 25, ry: 0.2 },
+    // Trash-can row (decoy cluster)
+    { id: "b03", modelKey: "trash_can", x: 15, y: 0, z: 26, ry: 0 },
+    { id: "b04", modelKey: "trash_can", x: 16.2, y: 0, z: 26, ry: 0 },
+    { id: "b05", modelKey: "trash_can", x: 17.4, y: 0, z: 26, ry: 0 },
+    { id: "b06", modelKey: "ac_unit", x: -16, y: 0, z: 26.5, ry: 0 },
+    // Flower-pot row (decoy cluster)
+    { id: "b07", modelKey: "flower_pot", x: -9, y: 0, z: 25.5, ry: 0 },
+    { id: "b08", modelKey: "flower_pot", x: -7.7, y: 0, z: 25.5, ry: 0 },
+    { id: "b09", modelKey: "flower_pot", x: -6.4, y: 0, z: 25.5, ry: 0 },
+    { id: "b10", modelKey: "flower_pot", x: -5.1, y: 0, z: 25.5, ry: 0 },
+    { id: "b11", modelKey: "cactus", x: 1, y: 0, z: 25, ry: 0 },
+    { id: "b12", modelKey: "lawn_chair", x: 3, y: 0, z: 21, ry: 0.1 },
+    { id: "b13", modelKey: "lawn_chair", x: 5, y: 0, z: 21, ry: -0.1 },
+
+    // ---- Vegetable garden (north-east) ----
+    { id: "b14", modelKey: "wheelbarrow", x: 26, y: 0, z: 20, ry: 0.6 },
+    { id: "b15", modelKey: "watering_can", x: 22, y: 0, z: 18, ry: 0 },
+    { id: "b16", modelKey: "watering_can", x: 23.2, y: 0, z: 18.4, ry: 0.5 },
+    { id: "b17", modelKey: "planter", x: 24, y: 0, z: 24, ry: 0 },
+    { id: "b18", modelKey: "planter", x: 26.5, y: 0, z: 24, ry: 0 },
+    // Pumpkin patch (decoy cluster)
+    { id: "b19", modelKey: "pumpkin", x: 30, y: 0, z: 14, ry: 0 },
+    { id: "b20", modelKey: "pumpkin", x: 31.3, y: 0, z: 14.6, ry: 0.4 },
+    { id: "b21", modelKey: "pumpkin", x: 29.5, y: 0, z: 15.4, ry: 0.9 },
+    { id: "b22", modelKey: "pumpkin", x: 31, y: 0, z: 16.2, ry: 1.3 },
+    { id: "b23", modelKey: "pumpkin", x: 32.4, y: 0, z: 15, ry: 0.2 },
+
+    // ---- Pool area (east) ----
+    { id: "b24", modelKey: "beach_ball", x: 24, y: 0, z: 4, ry: 0 },
+    { id: "b25", modelKey: "beach_ball", x: 25.2, y: 0, z: 5.1, ry: 0 },
+    { id: "b26", modelKey: "beach_ball", x: 23.4, y: 0, z: 6, ry: 0 },
+    { id: "b27", modelKey: "rubber_duck", x: 33, y: 0, z: 1, ry: -0.5 },
+    { id: "b28", modelKey: "lawn_chair", x: 34, y: 0, z: -3, ry: 1.4 },
+    { id: "b29", modelKey: "lawn_chair", x: 34, y: 0, z: 0, ry: 1.4 },
+    { id: "b30", modelKey: "cooler", x: 21, y: 0, z: -5, ry: 0 },
+
+    // ---- Play area (south-east) ----
+    { id: "b31", modelKey: "soccer_ball", x: 19, y: 0, z: -19, ry: 0 },
+    { id: "b32", modelKey: "soccer_ball", x: 20.3, y: 0, z: -20, ry: 0 },
+    { id: "b33", modelKey: "soccer_ball", x: 18.4, y: 0, z: -21, ry: 0 },
+    { id: "b34", modelKey: "dog_house", x: 15, y: 0, z: -14, ry: -0.6 },
+    { id: "b35", modelKey: "dog_bowl", x: 13, y: 0, z: -13, ry: 0 },
+
+    // ---- Driveway / gate (south) ----
+    { id: "b36", modelKey: "mailbox", x: -15, y: 0, z: -35.5, ry: 0 },
+    { id: "b37", modelKey: "fire_hydrant", x: 15, y: 0, z: -35.5, ry: 0 },
+    // Traffic-cone cluster (decoy)
+    { id: "b38", modelKey: "traffic_cone", x: 18, y: 0, z: -30, ry: 0 },
+    { id: "b39", modelKey: "traffic_cone", x: 19.2, y: 0, z: -30.6, ry: 0 },
+    { id: "b40", modelKey: "traffic_cone", x: 17.2, y: 0, z: -31, ry: 0 },
+
+    // ---- Tool corner / shed (south-west) ----
+    { id: "b41", modelKey: "propane_tank", x: -26, y: 0, z: -31, ry: 0 },
+    { id: "b42", modelKey: "propane_tank", x: -24.8, y: 0, z: -30.2, ry: 0 },
+    // Barrel cluster (decoy)
+    { id: "b43", modelKey: "barrel", x: -21, y: 0, z: -31, ry: 0 },
+    { id: "b44", modelKey: "barrel", x: -22.2, y: 0, z: -31.6, ry: 0 },
+    { id: "b45", modelKey: "barrel", x: -20.2, y: 0, z: -32, ry: 0 },
+    // Tire stack (decoy)
+    { id: "b46", modelKey: "tire", x: -28, y: 0, z: -24, ry: 0 },
+    { id: "b47", modelKey: "tire", x: -26.8, y: 0, z: -24.5, ry: 0 },
+    { id: "b48", modelKey: "crate_large", x: -24, y: 0, z: -26, ry: 0.4 },
+    { id: "b49", modelKey: "crate_small", x: -22.4, y: 0, z: -25.4, ry: 0.9 },
+    { id: "b50", modelKey: "bucket", x: -30, y: 0, z: -22, ry: 0 },
+
+    // ---- Garden / decor strip (west) ----
+    // Gnome army (decoy cluster of 5!)
+    { id: "b51", modelKey: "garden_gnome", x: -31, y: 0, z: 1, ry: 0 },
+    { id: "b52", modelKey: "garden_gnome", x: -30, y: 0, z: 2, ry: 0.3 },
+    { id: "b53", modelKey: "garden_gnome", x: -32, y: 0, z: 2.2, ry: -0.3 },
+    { id: "b54", modelKey: "garden_gnome", x: -30.5, y: 0, z: 0, ry: 0.6 },
+    { id: "b55", modelKey: "garden_gnome", x: -32.2, y: 0, z: 0.6, ry: -0.5 },
+    // Flamingo flock (decoy cluster)
+    { id: "b56", modelKey: "flamingo", x: -24, y: 0, z: 7, ry: 0.2 },
+    { id: "b57", modelKey: "flamingo", x: -22.8, y: 0, z: 8, ry: -0.3 },
+    { id: "b58", modelKey: "flamingo", x: -25, y: 0, z: 8.6, ry: 0.5 },
+    { id: "b59", modelKey: "flamingo", x: -23.6, y: 0, z: 9.6, ry: 0 },
+    { id: "b60", modelKey: "snowman", x: -19, y: 0, z: 14, ry: 0 },
+    { id: "b61", modelKey: "bench", x: -30, y: 0, z: 11, ry: 0.2 },
+    // Bushes along west fence
+    { id: "b62", modelKey: "bush", x: -36, y: 0, z: 12, ry: 0 },
+    { id: "b63", modelKey: "bush", x: -36, y: 0, z: 4, ry: 0 },
+    { id: "b64", modelKey: "bush", x: -36, y: 0, z: -4, ry: 0 },
+    { id: "b65", modelKey: "bush", x: -36, y: 0, z: -12, ry: 0 },
+    // Bushes along east fence
+    { id: "b66", modelKey: "bush", x: 36, y: 0, z: 10, ry: 0 },
+    { id: "b67", modelKey: "bush", x: 36, y: 0, z: -14, ry: 0 },
+
+    // ---- Center lawn ----
+    { id: "b68", modelKey: "bird_bath", x: -2, y: 0, z: 6, ry: 0 },
+    { id: "b69", modelKey: "rock", x: 5, y: 0, z: 4, ry: 0.5 },
+    { id: "b70", modelKey: "rock", x: 6.2, y: 0, z: 5, ry: 1.4 },
+    { id: "b71", modelKey: "rock", x: 4.4, y: 0, z: 5.6, ry: 0.8 },
+    { id: "b72", modelKey: "garden_gnome", x: 6, y: 0, z: -6, ry: 0 },
   ],
 };
 
