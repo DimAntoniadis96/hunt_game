@@ -26,7 +26,7 @@ import type { HUD } from "../ui/HUD";
 import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual } from "./mapBuilder";
 import { InputController, type CameraMode } from "./InputController";
 
-const COPY_RANGE = 4.5;
+const COPY_RANGE = 6.0;
 
 interface Visual {
   node: TransformNode;
@@ -75,12 +75,17 @@ export class GameScene {
     buildEnvironment(this.scene, map);
     buildStaticProps(this.scene, map);
 
+    // Spatial partitioning — keeps ground-probe picking + collisions fast even
+    // with the big map's hundreds of meshes (prevents frame-rate driven jank).
+    this.scene.createOrUpdateSelectionOctree(64, 2);
+
     const glow = new GlowLayer("glow", this.scene);
     glow.intensity = 0.55;
 
     const me = this.me();
     const spawn = me ? { x: me.x, z: me.z, ry: me.ry } : { x: 0, z: 0, ry: 0 };
     this.input = new InputController(this.scene, canvas, spawn);
+    this.input.setBounds(map.bounds);
     this.input.onJump = () => this.audio.play("jump");
 
     this.buildGunViewmodel();

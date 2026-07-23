@@ -37,6 +37,8 @@ export class InputController {
   private jumpAllowed = true; // decoupled: every alive player can hop
   private rotationLocked = false; // prop: freeze body facing (still can look/move)
   private lockedYaw = 0;
+  /** Hard play-area clamp — a belt-and-suspenders guard against clipping the fence. */
+  private bounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private sensitivity = 0.0022;
   private mode: CameraMode = "fp";
   private tpDistance = 5.0;
@@ -116,6 +118,11 @@ export class InputController {
     this.jumpAllowed = v;
   }
 
+  /** Set the play-area bounds so the player can never leave the map. */
+  setBounds(b: { minX: number; maxX: number; minZ: number; maxZ: number }) {
+    this.bounds = b;
+  }
+
   /** Feet position (y = 0 on the floor) — used to place the local player body. */
   getFeet(): { x: number; y: number; z: number } {
     return { x: this.collider.position.x, y: this.collider.position.y - HALF, z: this.collider.position.z };
@@ -132,7 +139,7 @@ export class InputController {
   reconcile(sx: number, sy: number, sz: number) {
     const dx = this.collider.position.x - sx;
     const dz = this.collider.position.z - sz;
-    if (Math.hypot(dx, dz) > 2.0) {
+    if (Math.hypot(dx, dz) > 3.0) {
       this.collider.position.set(sx, Math.max(HALF, sy + HALF), sz);
       this.vy = 0;
       this.updateCamera();
@@ -226,6 +233,13 @@ export class InputController {
       this.collider.position.y = HALF;
       this.vy = 0;
       this.grounded = true;
+    }
+
+    // Hard clamp to the play area — guarantees you can never tunnel out past a
+    // (thin) fence and get stuck outside, regardless of collision hiccups.
+    if (this.bounds) {
+      this.collider.position.x = Math.max(this.bounds.minX + PLAYER_RADIUS, Math.min(this.bounds.maxX - PLAYER_RADIUS, this.collider.position.x));
+      this.collider.position.z = Math.max(this.bounds.minZ + PLAYER_RADIUS, Math.min(this.bounds.maxZ - PLAYER_RADIUS, this.collider.position.z));
     }
 
     this.updateCamera();

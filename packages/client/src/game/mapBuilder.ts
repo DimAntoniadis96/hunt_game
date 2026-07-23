@@ -159,11 +159,12 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   const fenceH = 1.9;
   const fenceMat = "#8a6a3f";
   const postMat = "#6f5330";
+  const fenceT = 0.6; // thick enough that fast movement can't tunnel through it
   const edges: Array<[number, number, number, number]> = [
-    [(minX + maxX) / 2, minZ, w, 0.18],
-    [(minX + maxX) / 2, maxZ, w, 0.18],
-    [minX, cz, 0.18, d],
-    [maxX, cz, 0.18, d],
+    [(minX + maxX) / 2, minZ, w, fenceT],
+    [(minX + maxX) / 2, maxZ, w, fenceT],
+    [minX, cz, fenceT, d],
+    [maxX, cz, fenceT, d],
   ];
   for (const [x, z, W, D] of edges) box("fence", W, fenceH, D, x, fenceH / 2, z, fenceMat, true, 0.08);
   for (let x = minX; x <= maxX; x += 4) box("post", 0.28, fenceH + 0.25, 0.28, x, (fenceH + 0.25) / 2, minZ, postMat, false, 0.08);

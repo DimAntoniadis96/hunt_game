@@ -52,7 +52,7 @@ import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
-const COPY_RANGE = 4.5;
+const COPY_RANGE = 6.0;
 /** Enlarge hit cylinders slightly so box-corner shots register fairly. */
 const HIT_RADIUS_BUFFER = 1.15;
 /** Hit-cylinder height for an un-disguised prop (the humanoid body). */
@@ -236,7 +236,9 @@ export class GameRoom extends Room<GameState> {
     }
 
     const now = Date.now();
-    const dt = Math.max(0.001, Math.min(0.5, (now - m.lastInputAt) / 1000));
+    // Floor dt so bursty/irregular packet timing can't shrink the allowed step
+    // and rubber-band a legitimately-moving player.
+    const dt = Math.max(0.03, Math.min(0.5, (now - m.lastInputAt) / 1000));
     m.lastInputAt = now;
 
     // Speed-hack / teleport rejection: cap horizontal displacement by max speed.
