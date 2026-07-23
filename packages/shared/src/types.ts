@@ -40,6 +40,7 @@ export const ClientMessage = {
   Shoot: "shoot", // hunter fires
   Reload: "reload",
   Taunt: "taunt",
+  Decoy: "decoy", // prop drops a fake clone of its current disguise
   Ping: "ping",
 } as const;
 export type ClientMessageName =
@@ -165,6 +166,15 @@ export interface PlayerView {
   rotationLocked: boolean;
   score: number;
   ping: number;
+}
+
+export interface DecoyView {
+  id: string;
+  modelKey: string;
+  x: number;
+  y: number;
+  z: number;
+  ry: number;
 }
 
 export interface GameStateView {

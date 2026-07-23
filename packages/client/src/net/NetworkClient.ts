@@ -101,6 +101,9 @@ export class NetworkClient {
   taunt() {
     this.room?.send(ClientMessage.Taunt, {});
   }
+  decoy() {
+    this.room?.send(ClientMessage.Decoy, {});
+  }
 
   async leave() {
     this.stopPing();

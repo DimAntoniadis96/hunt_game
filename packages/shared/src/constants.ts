@@ -23,7 +23,10 @@ export const LOBBY_COUNTDOWN_SECONDS = 5; // once enough players are ready
 export const ROUNDS_PER_MATCH = 4; // teams swap each round
 
 /** Movement (units = metres). Server rejects motion faster than this. */
-export const PLAYER_WALK_SPEED = 5.0; // m/s
+export const PLAYER_WALK_SPEED = 5.0; // m/s (fallback)
+/** Props move a touch faster than hunters — mobility is their advantage. */
+export const PROP_WALK_SPEED = 6.1; // m/s
+export const HUNTER_WALK_SPEED = 5.0; // m/s
 export const PLAYER_SPRINT_SPEED = 7.5; // m/s
 export const PLAYER_JUMP_SPEED = 7.2; // m/s initial vertical velocity (~1.4m hop)
 export const GRAVITY = -18.0; // m/s^2 (game-y, snappier than real gravity)
@@ -54,6 +57,10 @@ export const SCORE_WRONG_SHOT_PENALTY = 25;
 
 /** Taunt: props are periodically forced/allowed to emit a locator sound. */
 export const TAUNT_COOLDOWN_MS = 12000;
+
+/** Decoy clones: props drop fake copies of their current disguise to mislead. */
+export const MAX_DECOYS_PER_PLAYER = 2;
+export const DECOY_COOLDOWN_MS = 3500;
 
 /** Network safety. */
 export const MAX_NAME_LENGTH = 16;

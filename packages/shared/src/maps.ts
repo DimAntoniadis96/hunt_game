@@ -102,6 +102,16 @@ export const PROP_MODELS: Record<string, PropModel> = {
   lawn_chair: { key: "lawn_chair", label: "Lawn Chair", radius: 0.55, height: 0.72, color: "#2e86c1", disguiseAllowed: true },
   dog_bowl: { key: "dog_bowl", label: "Dog Bowl", radius: 0.36, height: 0.34, color: "#7f8c8d", disguiseAllowed: true },
 
+  // ---- Small / detail items ----
+  tree_stump: { key: "tree_stump", label: "Tree Stump", radius: 0.5, height: 0.6, color: "#6b4a2a", disguiseAllowed: true },
+  portrait: { key: "portrait", label: "Framed Portrait", radius: 0.45, height: 1.0, color: "#b8860b", disguiseAllowed: true },
+  watermelon: { key: "watermelon", label: "Watermelon", radius: 0.4, height: 0.52, color: "#2e7d32", disguiseAllowed: true },
+  teapot: { key: "teapot", label: "Teapot", radius: 0.4, height: 0.58, color: "#dfe6e9", disguiseAllowed: true },
+  lantern: { key: "lantern", label: "Lantern", radius: 0.28, height: 0.75, color: "#34495e", disguiseAllowed: true },
+  mushroom: { key: "mushroom", label: "Toadstool", radius: 0.35, height: 0.7, color: "#e74c3c", disguiseAllowed: true },
+  birdhouse: { key: "birdhouse", label: "Birdhouse", radius: 0.34, height: 0.85, color: "#a0763f", disguiseAllowed: true },
+  picnic_basket: { key: "picnic_basket", label: "Picnic Basket", radius: 0.45, height: 0.5, color: "#c49a5a", disguiseAllowed: true },
+
   // Present in the world but NOT allowed as a disguise (too small / would be unfair).
   bolt: { key: "bolt", label: "Bolt", radius: 0.05, height: 0.05, color: "#888888", disguiseAllowed: false },
 };
@@ -282,6 +292,22 @@ export const BACKYARD: MapDefinition = {
     { id: "b70", modelKey: "rock", x: 6.2, y: 0, z: 5, ry: 1.4 },
     { id: "b71", modelKey: "rock", x: 4.4, y: 0, z: 5.6, ry: 0.8 },
     { id: "b72", modelKey: "garden_gnome", x: 6, y: 0, z: -6, ry: 0 },
+
+    // ---- Small / detail items (scattered) ----
+    { id: "b73", modelKey: "tree_stump", x: 12, y: 0, z: 9.5, ry: 0 },
+    { id: "b74", modelKey: "tree_stump", x: -8, y: 0, z: 10, ry: 0.6 },
+    { id: "b75", modelKey: "birdhouse", x: 9, y: 0, z: 10, ry: 0 },
+    { id: "b76", modelKey: "portrait", x: -6, y: 0, z: 25.2, ry: 0 },
+    { id: "b77", modelKey: "portrait", x: 20, y: 0, z: 25.2, ry: -0.2 },
+    { id: "b78", modelKey: "teapot", x: 2, y: 0, z: 22.5, ry: 0 },
+    { id: "b79", modelKey: "picnic_basket", x: -5, y: 0, z: -7.2, ry: 0.4 },
+    { id: "b80", modelKey: "watermelon", x: -6.5, y: 0, z: -5.5, ry: 0 },
+    { id: "b81", modelKey: "watermelon", x: 29, y: 0, z: 17, ry: 0.3 },
+    { id: "b82", modelKey: "lantern", x: -2, y: 0, z: -2, ry: 0 },
+    { id: "b83", modelKey: "lantern", x: 2, y: 0, z: -14, ry: 0 },
+    { id: "b84", modelKey: "mushroom", x: -29, y: 0, z: 3.5, ry: 0 },
+    { id: "b85", modelKey: "mushroom", x: -27.5, y: 0, z: 4.5, ry: 0.5 },
+    { id: "b86", modelKey: "teapot", x: 24.5, y: 0, z: 22, ry: 0.2 },
   ],
 };
 

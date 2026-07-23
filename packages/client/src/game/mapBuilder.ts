@@ -498,6 +498,54 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
       add(MeshBuilder.CreateCylinder(name + "_w", { diameter: r * 1.5, height: 0.03, tessellation: 14 }, scene), h * 0.85).material = mat(scene, "#7a4a2a");
       break;
     }
+    // ---- Small / detail items ----
+    case "tree_stump": {
+      add(MeshBuilder.CreateCylinder(name + "_s", { diameterTop: r * 1.9, diameterBottom: r * 2, height: h, tessellation: 14 }, scene), h / 2);
+      add(MeshBuilder.CreateCylinder(name + "_t", { diameter: r * 1.85, height: 0.05, tessellation: 14 }, scene), h + 0.02).material = mat(scene, "#a67c48");
+      break;
+    }
+    case "portrait": {
+      add(MeshBuilder.CreateBox(name + "_fr", { width: r * 1.8, height: h, depth: 0.12 }, scene), h / 2); // gold frame
+      add(MeshBuilder.CreateBox(name + "_cv", { width: r * 1.45, height: h * 0.78, depth: 0.06 }, scene), h / 2, 0, 0.06).material = mat(scene, "#6a8fb0"); // "painting"
+      add(MeshBuilder.CreateBox(name + "_st", { width: 0.1, height: h * 0.5, depth: 0.1 }, scene), h * 0.25, 0, -0.25).material = mat(scene, "#5b3b22"); // easel leg
+      break;
+    }
+    case "watermelon": {
+      add(MeshBuilder.CreateSphere(name + "_w", { diameter: r * 2, segments: 12 }, scene), r * 0.72).scaling.set(1.3, 0.82, 1);
+      break;
+    }
+    case "teapot": {
+      add(MeshBuilder.CreateSphere(name + "_b", { diameter: r * 1.9, segments: 12 }, scene), h * 0.42).scaling.set(1, 0.85, 1);
+      add(MeshBuilder.CreateSphere(name + "_l", { diameter: r * 0.9, segments: 10 }, scene), h * 0.82);
+      add(MeshBuilder.CreateCylinder(name + "_sp", { diameterTop: 0.06, diameterBottom: 0.14, height: h * 0.6, tessellation: 8 }, scene), h * 0.5, r * 0.85).rotation.z = -0.9;
+      add(MeshBuilder.CreateTorus(name + "_h", { diameter: r * 0.9, thickness: 0.08, tessellation: 10 }, scene), h * 0.5, -r * 0.95).rotation.y = Math.PI / 2;
+      break;
+    }
+    case "lantern": {
+      add(MeshBuilder.CreateBox(name + "_b", { width: r * 1.4, height: h * 0.55, depth: r * 1.4 }, scene), h * 0.42);
+      add(MeshBuilder.CreateBox(name + "_g", { width: r * 1.0, height: h * 0.4, depth: r * 1.0 }, scene), h * 0.42).material = mat(scene, "#ffd479", 0.85);
+      add(MeshBuilder.CreateCylinder(name + "_c", { diameterTop: 0, diameterBottom: r * 1.6, height: h * 0.25, tessellation: 4 }, scene), h * 0.82).rotation.y = Math.PI / 4;
+      add(MeshBuilder.CreateTorus(name + "_r", { diameter: r * 0.7, thickness: 0.05, tessellation: 8 }, scene), h * 0.98);
+      break;
+    }
+    case "mushroom": {
+      add(MeshBuilder.CreateCylinder(name + "_s", { diameterTop: r * 0.9, diameterBottom: r * 1.1, height: h * 0.6, tessellation: 10 }, scene), h * 0.3).material = mat(scene, "#f3efe6");
+      add(MeshBuilder.CreateSphere(name + "_c", { diameter: r * 2, segments: 12, slice: 0.55 }, scene), h * 0.6);
+      break;
+    }
+    case "birdhouse": {
+      add(MeshBuilder.CreateBox(name + "_h", { width: r * 1.6, height: h * 0.4, depth: r * 1.6 }, scene), h * 0.55);
+      add(MeshBuilder.CreateCylinder(name + "_rf", { diameterTop: 0, diameterBottom: r * 2.4, height: h * 0.3, tessellation: 4 }, scene), h * 0.85).rotation.y = Math.PI / 4;
+      add(MeshBuilder.CreateCylinder(name + "_o", { diameter: r * 0.5, height: 0.06, tessellation: 10 }, scene), h * 0.58, 0, r * 0.8).rotation.x = Math.PI / 2;
+      (root.getChildMeshes().slice(-1)[0] as Mesh).material = mat(scene, "#20140a");
+      add(MeshBuilder.CreateCylinder(name + "_p", { diameter: 0.1, height: h * 0.35, tessellation: 6 }, scene), h * 0.17).material = mat(scene, "#5b3b22");
+      break;
+    }
+    case "picnic_basket": {
+      add(MeshBuilder.CreateBox(name + "_bk", { width: r * 2, height: h * 0.7, depth: r * 1.5 }, scene), h * 0.35);
+      add(MeshBuilder.CreateTorus(name + "_hd", { diameter: r * 1.5, thickness: 0.07, tessellation: 12 }, scene), h * 0.85).rotation.x = Math.PI / 2;
+      break;
+    }
     case "pallet_stack":
     case "toolbox":
     case "crate_small":

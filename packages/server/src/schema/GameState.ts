@@ -1,5 +1,16 @@
-import { Schema, MapSchema, type } from "@colyseus/schema";
+import { Schema, MapSchema, ArraySchema, type } from "@colyseus/schema";
 import { Phase, RoundResult, Team } from "@mimic/shared";
+
+/** A fake clone of a prop's disguise, dropped to mislead hunters. */
+export class Decoy extends Schema {
+  @type("string") id = "";
+  @type("string") ownerId = "";
+  @type("string") modelKey = "";
+  @type("number") x = 0;
+  @type("number") y = 0;
+  @type("number") z = 0;
+  @type("number") ry = 0;
+}
 
 /**
  * Authoritative per-player state. Every field here is replicated to clients via
@@ -49,4 +60,5 @@ export class GameState extends Schema {
   @type("number") huntersScore = 0;
   @type("string") lastResult: RoundResult = RoundResult.None;
   @type({ map: Player }) players = new MapSchema<Player>();
+  @type([Decoy]) decoys = new ArraySchema<Decoy>();
 }

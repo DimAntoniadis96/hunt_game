@@ -116,16 +116,20 @@ export function resolveShot(
   }
 
   let bestPropT = Infinity;
+  let propId: string | undefined;
   for (const pr of props) {
     const t = rayCylinder(ray.ox, ray.oy, ray.oz, dir, pr.x, pr.z, pr.radius, pr.baseY, pr.baseY + pr.height);
-    if (t !== null && t <= range && t < bestPropT) bestPropT = t;
+    if (t !== null && t <= range && t < bestPropT) {
+      bestPropT = t;
+      propId = pr.id;
+    }
   }
 
   if (victimId && bestPlayerT <= bestPropT) {
     return { kind: "hit", targetId: victimId, t: bestPlayerT, hx: ray.ox + dir.x * bestPlayerT, hy: ray.oy + dir.y * bestPlayerT, hz: ray.oz + dir.z * bestPlayerT };
   }
   if (isFinite(bestPropT) && bestPropT <= range) {
-    return { kind: "wrong", t: bestPropT, hx: ray.ox + dir.x * bestPropT, hy: ray.oy + dir.y * bestPropT, hz: ray.oz + dir.z * bestPropT };
+    return { kind: "wrong", targetId: propId, t: bestPropT, hx: ray.ox + dir.x * bestPropT, hy: ray.oy + dir.y * bestPropT, hz: ray.oz + dir.z * bestPropT };
   }
   return { kind: "miss" };
 }

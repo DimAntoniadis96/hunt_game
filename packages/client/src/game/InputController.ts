@@ -93,6 +93,10 @@ export class InputController {
     return this.rotationLocked ? this.lockedYaw : this.yaw;
   }
 
+  isRotationLocked(): boolean {
+    return this.rotationLocked;
+  }
+
   setRotationLocked(v: boolean) {
     if (v && !this.rotationLocked) this.lockedYaw = this.yaw; // freeze at current facing
     this.rotationLocked = v;
@@ -182,6 +186,15 @@ export class InputController {
   }
 
   update(dt: number, speed = PLAYER_WALK_SPEED): boolean {
+    // Rotation-locked = fully frozen in place, INCLUDING mid-air. A prop can jump
+    // up against a wall/ledge, lock, and stay suspended there. Gravity + movement
+    // are suspended; you can still orbit the camera to watch for hunters.
+    if (this.rotationLocked) {
+      this.vy = 0;
+      this.updateCamera();
+      return false;
+    }
+
     // Movement is derived from yaw (independent of camera mode) so it feels the
     // same in first- and third-person.
     const sy = Math.sin(this.yaw);

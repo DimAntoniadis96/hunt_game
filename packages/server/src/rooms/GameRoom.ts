@@ -7,8 +7,10 @@ const { Room, matchMaker } = colyseus;
 import {
   CLIENT_INPUT_RATE,
   ClientMessage,
+  DECOY_COOLDOWN_MS,
   DEFAULT_MAP_ID,
   GRAVITY,
+  MAX_DECOYS_PER_PLAYER,
   HUNT_SECONDS,
   LOBBY_COUNTDOWN_SECONDS,
   MAPS,
@@ -47,7 +49,7 @@ import {
   type ShootPayload,
   type TransformPayload,
 } from "@mimic/shared";
-import { GameState, Player } from "../schema/GameState.js";
+import { Decoy, GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
 
@@ -70,6 +72,7 @@ interface ClientMeta {
   lastShotAt: number;
   reloadDoneAt: number;
   lastTauntAt: number;
+  lastDecoyAt: number;
   msgWindowStart: number;
   msgCount: number;
   disconnectedAt: number;
@@ -79,6 +82,7 @@ export class GameRoom extends Room<GameState> {
   maxClients = MAX_PLAYERS;
   private meta = new Map<string, ClientMeta>();
   private roomCode = "";
+  private decoySeq = 0;
 
   // ---- lifecycle ----------------------------------------------------------
 
@@ -119,6 +123,7 @@ export class GameRoom extends Room<GameState> {
       lastShotAt: 0,
       reloadDoneAt: 0,
       lastTauntAt: 0,
+      lastDecoyAt: 0,
       msgWindowStart: Date.now(),
       msgCount: 0,
       disconnectedAt: 0,
@@ -208,6 +213,11 @@ export class GameRoom extends Room<GameState> {
     this.onMessage(ClientMessage.Taunt, (client) => {
       if (!this.rateOk(client)) return;
       this.handleTaunt(client);
+    });
+
+    this.onMessage(ClientMessage.Decoy, (client) => {
+      if (!this.rateOk(client)) return;
+      this.handleDecoy(client);
     });
 
     this.onMessage(ClientMessage.Ping, (client, raw) => {
@@ -338,6 +348,12 @@ export class GameRoom extends Room<GameState> {
         return model ? { id: spawn.id, x: spawn.x, z: spawn.z, baseY: 0, radius: model.radius, height: model.height } : null;
       })
       .filter((t): t is CylinderTarget => t !== null);
+    // Decoys are shootable furniture: shooting one is a "wrong" shot (penalty)
+    // and the decoy is destroyed — hunters can clear bait, but it costs them.
+    this.state.decoys.forEach((dd) => {
+      const model = PROP_MODELS[dd.modelKey];
+      if (model) propTargets.push({ id: `decoy:${dd.id}`, x: dd.x, z: dd.z, baseY: dd.y, radius: model.radius, height: model.height });
+    });
 
     const res = resolveShot({ ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz }, playerTargets, propTargets, WEAPON_RANGE);
 
@@ -362,7 +378,13 @@ export class GameRoom extends Room<GameState> {
     }
 
     if (res.kind === "wrong") {
-      // Shot a real object: self-penalty.
+      // Shooting a decoy destroys it (and still costs the hunter a small penalty).
+      if (res.targetId && res.targetId.startsWith("decoy:")) {
+        const decoyId = res.targetId.slice("decoy:".length);
+        const idx = this.state.decoys.findIndex((dd) => dd.id === decoyId);
+        if (idx >= 0) this.state.decoys.splice(idx, 1);
+      }
+      // Shot a real object / decoy: self-penalty.
       player.health = Math.max(1, player.health - WRONG_SHOT_SELF_DAMAGE);
       player.score = Math.max(0, player.score - SCORE_WRONG_SHOT_PENALTY);
       client.send(ServerMessage.ShotResult, { hit: false, wrong: true, hx: res.hx, hy: res.hy, hz: res.hz });
@@ -396,6 +418,33 @@ export class GameRoom extends Room<GameState> {
       secondsLeft: this.secondsLeft(),
       message: "taunt",
     });
+  }
+
+  /** Drop a fake clone of the prop's current disguise where they stand. */
+  private handleDecoy(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    const m = this.meta.get(client.sessionId);
+    if (!player || !m || player.team !== Team.Props || !player.alive) return;
+    if (!player.propModel || !PROP_MODELS[player.propModel]) return; // must be disguised
+    if (this.state.phase !== Phase.Prep && this.state.phase !== Phase.Hunt) return;
+    const now = Date.now();
+    if (now - m.lastDecoyAt < DECOY_COOLDOWN_MS) return;
+    const owned = this.state.decoys.filter((dd) => dd.ownerId === player.id).length;
+    if (owned >= MAX_DECOYS_PER_PLAYER) {
+      // Replace the oldest decoy from this player instead of exceeding the cap.
+      const idx = this.state.decoys.findIndex((dd) => dd.ownerId === player.id);
+      if (idx >= 0) this.state.decoys.splice(idx, 1);
+    }
+    m.lastDecoyAt = now;
+    const d = new Decoy();
+    d.id = `d${this.decoySeq++}`;
+    d.ownerId = player.id;
+    d.modelKey = player.propModel;
+    d.x = player.x;
+    d.y = player.y;
+    d.z = player.z;
+    d.ry = player.ry;
+    this.state.decoys.push(d);
   }
 
   // ---- simulation / state machine ----------------------------------------
@@ -545,6 +594,7 @@ export class GameRoom extends Room<GameState> {
 
   private spawnAndResetPlayers() {
     const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
+    this.state.decoys.splice(0, this.state.decoys.length); // clear last round's decoys
     let hi = 0;
     let pi = 0;
     this.state.players.forEach((player) => {

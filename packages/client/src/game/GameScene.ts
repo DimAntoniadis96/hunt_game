@@ -11,12 +11,15 @@ import {
 import {
   CLIENT_INPUT_RATE,
   DEFAULT_MAP_ID,
+  HUNTER_WALK_SPEED,
   MAPS,
   PROP_MODELS,
+  PROP_WALK_SPEED,
   Phase,
   ServerMessage,
   Team,
   WEAPON_RELOAD_MS,
+  type DecoyView,
   type PlayerView,
 } from "@mimic/shared";
 import type { Room } from "colyseus.js";
@@ -44,6 +47,7 @@ export class GameScene {
   private canvas: HTMLCanvasElement;
 
   private visuals = new Map<string, Visual>();
+  private decoyNodes = new Map<string, TransformNode>();
   private sendAccum = 0;
   private prevPhase: Phase | null = null;
   private prevAlive = true;
@@ -74,10 +78,6 @@ export class GameScene {
     const map = MAPS[this.mapId] ?? MAPS[DEFAULT_MAP_ID];
     buildEnvironment(this.scene, map);
     buildStaticProps(this.scene, map);
-
-    // Spatial partitioning — keeps ground-probe picking + collisions fast even
-    // with the big map's hundreds of meshes (prevents frame-rate driven jank).
-    this.scene.createOrUpdateSelectionOctree(64, 2);
 
     const glow = new GlowLayer("glow", this.scene);
     glow.intensity = 0.55;
@@ -191,6 +191,7 @@ export class GameScene {
 
     if (phase === Phase.Prep && this.prevPhase !== Phase.Prep && me) {
       this.input.teleport(me.x, me.y, me.z, me.ry);
+      this.input.setRotationLocked(false); // fresh round starts unlocked
     }
     if (me && me.alive !== this.prevAlive && !me.alive) {
       this.input.teleport(me.x, me.y, me.z);
@@ -213,25 +214,26 @@ export class GameScene {
     this.input.setFrozen(frozen);
     // Jump is allowed for any alive player (even a frozen hunter during Prep).
     this.input.setJumpAllowed(!!me && me.alive);
-    // Rotation lock: freeze the prop's facing so mouse-look stops spinning it.
-    const wantLock = !!me && me.team === Team.Props && me.rotationLocked;
-    this.input.setRotationLocked(wantLock);
-    if (me && me.team === Team.Props && me.rotationLocked !== this.prevLocked) {
-      this.hud.banner(me.rotationLocked ? "Rotation locked 🔒" : "Rotation unlocked 🔓", 1000);
-      this.audio.play("ui");
+    // Lock (freeze in place, incl. mid-air) is driven locally for instant feel
+    // by the R key. Force-unlock whenever the local player can't be a locked prop.
+    if (!me || me.team !== Team.Props || !me.alive || phase === Phase.RoundEnd || phase === Phase.MatchEnd) {
+      this.input.setRotationLocked(false);
     }
-    this.prevLocked = me?.rotationLocked ?? false;
 
-    const moving = this.input.update(dt);
+    // Props move a little faster than hunters — mobility is their edge.
+    const speed = me && me.team === Team.Props ? PROP_WALK_SPEED : HUNTER_WALK_SPEED;
+    const moving = this.input.update(dt, speed);
 
     this.sendAccum += dt;
     if (this.sendAccum >= 1 / CLIENT_INPUT_RATE) {
       this.sendAccum = 0;
       if (me && me.alive) this.net.sendInput(this.input.snapshot(moving));
     }
-    if (me && me.alive && !frozen) this.input.reconcile(me.x, me.y, me.z);
+    // Don't reconcile while frozen or locked (a locked prop holds its exact spot).
+    if (me && me.alive && !frozen && !this.input.isRotationLocked()) this.input.reconcile(me.x, me.y, me.z);
 
     this.syncVisuals(state, dt, this.currentMode === "tp");
+    this.syncDecoys(state);
     this.updatePrompts(me, phase);
     this.hud.update(state, me, this.net.ping);
     this.scene.render();
@@ -300,14 +302,39 @@ export class GameScene {
     }
   }
 
+  /** Render decoy clones from server state (created/removed as the list changes). */
+  private syncDecoys(state: any) {
+    const seen = new Set<string>();
+    state.decoys.forEach((d: DecoyView) => {
+      seen.add(d.id);
+      if (!this.decoyNodes.has(d.id)) {
+        const node = createPropVisual(this.scene, d.modelKey, `decoy_${d.id}`);
+        node.position.set(d.x, d.y, d.z);
+        node.rotation.y = d.ry;
+        // Faint shimmer so the owner can tell their own decoys apart (subtle).
+        this.decoyNodes.set(d.id, node);
+      }
+    });
+    for (const [id, node] of this.decoyNodes) {
+      if (!seen.has(id)) {
+        node.dispose();
+        this.decoyNodes.delete(id);
+      }
+    }
+  }
+
   private updatePrompts(me: PlayerView | undefined, phase: Phase) {
     if (!me || !me.alive) return this.hud.prompt(null);
     if (me.team === Team.Props && (phase === Phase.Prep || phase === Phase.Hunt)) {
       const near = this.nearestProp();
+      const disguised = !!me.propModel;
+      const extra = disguised ? ` · <kbd>R</kbd> lock · <kbd>F</kbd> decoy · <kbd>T</kbd> taunt` : ` · <kbd>R</kbd> lock`;
       if (near) {
-        this.hud.prompt(`<kbd>E</kbd> disguise as ${PROP_MODELS[near.modelKey]?.label ?? near.modelKey} · <kbd>R</kbd> lock · <kbd>T</kbd> taunt`);
+        this.hud.prompt(`<kbd>E</kbd> disguise as ${PROP_MODELS[near.modelKey]?.label ?? near.modelKey}${extra}`);
+      } else if (disguised) {
+        this.hud.prompt(`<kbd>R</kbd> lock in place · <kbd>F</kbd> drop decoy · <kbd>T</kbd> taunt`);
       } else {
-        this.hud.prompt(`Walk up to an object, then press <kbd>E</kbd> to disguise · <kbd>R</kbd> lock`);
+        this.hud.prompt(`Walk up to an object, then press <kbd>E</kbd> to disguise`);
       }
     } else {
       this.hud.prompt(null);
@@ -347,7 +374,20 @@ export class GameScene {
           break;
         case "KeyR":
           if (me.team === Team.Hunters) this.net.reload();
-          else if (me.team === Team.Props) this.net.lockRotation(!me.rotationLocked);
+          else if (me.team === Team.Props && me.alive) {
+            const nl = !this.input.isRotationLocked();
+            this.input.setRotationLocked(nl); // instant local freeze (incl. mid-air)
+            this.net.lockRotation(nl); // so other players see the frozen facing
+            this.hud.banner(nl ? "Locked in place 🔒" : "Unlocked 🔓", 1000);
+            this.audio.play("ui");
+          }
+          break;
+        case "KeyF":
+          if (me.team === Team.Props && me.alive && me.propModel) {
+            this.net.decoy();
+            this.hud.banner("Decoy dropped 🎭", 900);
+            this.audio.play("transform");
+          }
           break;
         case "KeyT":
           if (me.team === Team.Props && me.alive) this.net.taunt();
