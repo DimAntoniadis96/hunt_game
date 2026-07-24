@@ -167,11 +167,13 @@ export const BACKYARD: MapDefinition = {
   id: "backyard",
   displayName: "Sunnyside Yard",
   theme: "backyard",
-  width: 84,
-  depth: 84,
+  width: 96,
+  depth: 88,
   wallHeight: 2,
-  // Big fully-fenced yard; the house sits inside the north edge.
-  bounds: { minX: -38, maxX: 38, minZ: -38, maxZ: 30 },
+  // Big fully-fenced yard; the house sits inside the north edge. Enlarged east/
+  // west/south to give props more ground to run across and hedge cover to break
+  // line of sight (see mapBuilder hedges).
+  bounds: { minX: -46, maxX: 46, minZ: -44, maxZ: 30 },
   // Hunters break out from the south gate.
   hunterSpawns: [
     { x: -9, y: 0, z: -35, ry: 0 },
@@ -308,6 +310,18 @@ export const BACKYARD: MapDefinition = {
     { id: "b84", modelKey: "mushroom", x: -29, y: 0, z: 3.5, ry: 0 },
     { id: "b85", modelKey: "mushroom", x: -27.5, y: 0, z: 4.5, ry: 0.5 },
     { id: "b86", modelKey: "teapot", x: 24.5, y: 0, z: 22, ry: 0.2 },
+
+    // ---- Cover-adjacent props (blend in right next to the hedges) ----
+    { id: "b87", modelKey: "bush", x: 3, y: 0, z: -20, ry: 0 },
+    { id: "b88", modelKey: "bush", x: -16, y: 0, z: 1, ry: 0 },
+    { id: "b89", modelKey: "bush", x: 14, y: 0, z: 4, ry: 0 },
+    { id: "b90", modelKey: "bush", x: -6, y: 0, z: 15, ry: 0 },
+    { id: "b91", modelKey: "rock", x: 6.5, y: 0, z: 15, ry: 0.7 },
+    { id: "b92", modelKey: "planter", x: 22, y: 0, z: 2.5, ry: 0 },
+    { id: "b93", modelKey: "trash_can", x: -42, y: 0, z: -2, ry: 0 },
+    { id: "b94", modelKey: "trash_can", x: -42, y: 0, z: -14, ry: 0 },
+    { id: "b95", modelKey: "flower_pot", x: -8, y: 0, z: 20, ry: 0 },
+    { id: "b96", modelKey: "bush", x: 41, y: 0, z: -12, ry: 0 },
   ],
 };
 

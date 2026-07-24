@@ -10,19 +10,23 @@ Replace them with your own original or royalty-free assets when polishing (Phase
 
 ## Audio
 
-Today each cue (`shoot`, `jump`, `transform`, `countdown`, …) is an oscillator/noise
-burst. To use real samples:
+Each cue (`shoot`, `jump`, `transform`, `countdown`, …) has a layered synthesized
+fallback that runs through a soft master bus (low-pass + compressor). **Real
+samples are now auto-loaded — no code changes needed:**
 
-1. Put royalty-free `.ogg`/`.mp3` files under `packages/client/public/audio/`.
-   Good sources: **Kenney.nl** (CC0), **freesound.org** (check each license),
-   **OpenGameArt.org** (CC0/CC-BY). Verify the license per file.
-2. In `AudioManager`, load them once (after `unlock()`), decode to `AudioBuffer`s,
-   and in `play(sfx)` play the matching buffer through `this.master` instead of
-   calling `blip()/noise()`. Keep the autoplay rule: audio only starts after a
-   real user gesture (the "Click to play" button already provides it).
+1. Drop royalty-free files into `packages/client/public/audio/`, named exactly
+   after the cue: `shoot.ogg`, `jump.ogg`, `reload.ogg`, … The loader tries
+   `.ogg`, then `.mp3`, then `.wav` for each name, so any of those formats work.
+2. That's it. On first user gesture (`unlock()`) `AudioManager` fetches + decodes
+   whatever is present and plays it instead of the synth. Missing files keep the
+   synthesized fallback, so you can replace cues one at a time.
 
-Cues to provide: `ui, shoot, reload, jump, transform, hit, eliminate, countdown,
-round_start, round_end, taunt`.
+Good sources: **Kenney.nl** (CC0 — e.g. the "Impact/Interface/Shooting" packs),
+**freesound.org** (check each license), **OpenGameArt.org** (CC0/CC-BY). Verify
+the license per file and record it in `CREDITS.md`.
+
+Cues (file names) to provide: `ui, shoot, reload, jump, transform, hit, eliminate,
+countdown, round_start, round_end, taunt`.
 
 ## 3D models (props & characters)
 

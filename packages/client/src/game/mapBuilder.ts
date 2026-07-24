@@ -274,6 +274,38 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
     [13, -22],
   ] as Array<[number, number]>) tree(tx, tz);
 
+  // ---- Hedges & cover (interior obstacles) ----
+  // Chest/head-high hedges break the hunters' line of sight and give a spotted
+  // prop something to dodge behind and lose their pursuer. Layered as a lighter
+  // canopy box on a darker trunk box so they read as foliage, not walls.
+  const hedge = (x: number, z: number, W: number, D: number) => {
+    const H = 1.7;
+    box("hedge", W, H, D, x, H / 2, z, "#3f7d34", true, 0.09);
+    // Lighter top layer (decorative, non-colliding) so it looks bushy.
+    box("hedgeTop", W + 0.25, 0.5, D + 0.25, x, H + 0.12, z, "#4f9e3a", false, 0.11);
+  };
+  // South-central L (near the hunters' approach — first cover off the gate).
+  hedge(-4, -20, 10, 0.9);
+  hedge(1, -24, 0.9, 8);
+  // Mid-west cover cluster.
+  hedge(-16, -6, 0.9, 10);
+  hedge(-20, -11, 9, 0.9);
+  // Mid-east cover cluster.
+  hedge(14, -3, 0.9, 10);
+  hedge(18, 2, 9, 0.9);
+  // Center-north screen.
+  hedge(0, 15, 10, 0.9);
+  // Long runs down the new east/west margins — chase lanes with cover.
+  hedge(-41, -8, 0.9, 14);
+  hedge(41, -6, 0.9, 14);
+  // A low brick garden wall as partial (crouch-height) cover near the patio.
+  const lowWall = (x: number, z: number, W: number, D: number) => {
+    box("gardenWall", W, 0.9, D, x, 0.45, z, "#b07a55", true, 0.07);
+    box("gardenWallCap", W + 0.15, 0.14, D + 0.15, x, 0.95, z, "#caa07a", false, 0.06);
+  };
+  lowWall(-14, 20, 11, 0.6);
+  lowWall(24, -33, 8, 0.6);
+
   // Sun disc.
   const sunDisc = MeshBuilder.CreateSphere("sunDisc", { diameter: 8, segments: 12 }, scene);
   sunDisc.position.set(60, 80, 60);

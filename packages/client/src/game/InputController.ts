@@ -227,7 +227,19 @@ export class InputController {
     if (this.vy < TERMINAL_VY) this.vy = TERMINAL_VY;
 
     // Horizontal collide-and-slide (walls + prop sides) is done by the ellipsoid.
-    this.collider.moveWithCollisions(new Vector3(move.x, this.vy * dt, move.z));
+    // Extra robustness check: if a single frame would move us further than about
+    // half our radius (a low-FPS spike, a sprint into a thin hedge/fence), split
+    // the motion into sub-steps so the ellipsoid can't tunnel straight through a
+    // thin obstacle. Each sub-step is a full collide-and-slide, so walls still
+    // slide smoothly — this only kicks in for the big steps that used to clip.
+    const vStep = this.vy * dt;
+    const horizDist = Math.hypot(move.x, move.z);
+    const maxSeg = PLAYER_RADIUS * 0.6;
+    const steps = Math.max(1, Math.min(5, Math.ceil(horizDist / maxSeg)));
+    const inv = 1 / steps;
+    for (let i = 0; i < steps; i++) {
+      this.collider.moveWithCollisions(new Vector3(move.x * inv, vStep * inv, move.z * inv));
+    }
 
     // Ground detection by a short downward raycast so the player stands ON the
     // real surface beneath them — the floor OR the top of a prop — instead of

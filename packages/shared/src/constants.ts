@@ -24,9 +24,10 @@ export const ROUNDS_PER_MATCH = 4; // teams swap each round
 
 /** Movement (units = metres). Server rejects motion faster than this. */
 export const PLAYER_WALK_SPEED = 5.0; // m/s (fallback)
-/** Props move a touch faster than hunters — mobility is their advantage. */
+/** Props (hiders) move at full speed — mobility is their advantage. */
 export const PROP_WALK_SPEED = 6.1; // m/s
-export const HUNTER_WALK_SPEED = 5.0; // m/s
+/** Hunters (seekers) move at 80% of the hiders' speed, so props stay faster. */
+export const HUNTER_WALK_SPEED = PROP_WALK_SPEED * 0.8; // m/s (≈4.88)
 export const PLAYER_SPRINT_SPEED = 7.5; // m/s
 export const PLAYER_JUMP_SPEED = 7.2; // m/s initial vertical velocity (~1.4m hop)
 export const GRAVITY = -18.0; // m/s^2 (game-y, snappier than real gravity)

@@ -366,7 +366,7 @@ button:disabled {
 
 .prompt {
   position: absolute;
-  bottom: 28%;
+  bottom: 96px;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.6);
