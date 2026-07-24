@@ -45,7 +45,11 @@ import {
   WEAPON_MAG_SIZE,
   WEAPON_RANGE,
   WEAPON_RELOAD_MS,
-  WRONG_SHOT_SELF_DAMAGE,
+  WEAPON_RESERVE_AMMO,
+  DECOY_AMMO_REWARD,
+  MELEE_RANGE,
+  MELEE_DAMAGE,
+  MELEE_COOLDOWN_MS,
   type InputPayload,
   type ShootPayload,
   type TransformPayload,
@@ -75,6 +79,7 @@ interface ClientMeta {
   lastTauntAt: number;
   lastDecoyAt: number;
   lastTransformAt: number;
+  lastMeleeAt: number;
   msgWindowStart: number;
   msgCount: number;
   disconnectedAt: number;
@@ -127,6 +132,7 @@ export class GameRoom extends Room<GameState> {
       lastTauntAt: 0,
       lastDecoyAt: 0,
       lastTransformAt: 0,
+      lastMeleeAt: 0,
       msgWindowStart: Date.now(),
       msgCount: 0,
       disconnectedAt: 0,
@@ -206,6 +212,11 @@ export class GameRoom extends Room<GameState> {
     this.onMessage(ClientMessage.Shoot, (client, raw) => {
       if (!this.rateOk(client)) return;
       this.handleShoot(client, raw as ShootPayload);
+    });
+
+    this.onMessage(ClientMessage.Melee, (client, raw) => {
+      if (!this.rateOk(client)) return;
+      this.handleMelee(client, raw as ShootPayload);
     });
 
     this.onMessage(ClientMessage.Reload, (client) => {
@@ -351,14 +362,7 @@ export class GameRoom extends Room<GameState> {
 
     // Build authoritative target cylinders. Players use their ACTUAL height
     // (baseY = feet), so a prop standing on furniture or mid-jump is hittable.
-    const playerTargets: CylinderTarget[] = [];
-    this.state.players.forEach((other) => {
-      if (other === player || !other.alive || other.team !== Team.Props) return;
-      const model = PROP_MODELS[other.propModel];
-      const radius = (model ? model.radius : PLAYER_RADIUS) * HIT_RADIUS_BUFFER;
-      const height = model ? model.height : PLAYER_HIT_HEIGHT;
-      playerTargets.push({ id: other.id, x: other.x, z: other.z, baseY: other.y, radius, height });
-    });
+    const playerTargets = this.propPlayerTargets(player);
     const propTargets: CylinderTarget[] = map.props
       .map((spawn) => {
         const model = PROP_MODELS[spawn.modelKey];
@@ -377,32 +381,23 @@ export class GameRoom extends Room<GameState> {
     if (res.kind === "hit" && res.targetId) {
       const victim = this.state.players.get(res.targetId);
       if (!victim) return;
-      victim.health = Math.max(0, victim.health - WEAPON_DAMAGE);
-      const killed = victim.health <= 0;
-      client.send(ServerMessage.ShotResult, { hit: true, wrong: false, targetId: victim.id, damage: WEAPON_DAMAGE, killed, hx: res.hx, hy: res.hy, hz: res.hz });
-      const victimClient = this.clients.find((c) => c.sessionId === victim.id);
-      victimClient?.send(ServerMessage.Hit, { amount: WEAPON_DAMAGE, health: victim.health, byId: player.id });
-      if (killed) {
-        victim.alive = false;
-        victim.moving = false;
-        player.score += SCORE_PER_PROP_KILL;
-        this.state.huntersScore += SCORE_PER_PROP_KILL;
-        this.broadcast(ServerMessage.Killfeed, { killerName: player.name, victimName: victim.name });
-        victimClient?.send(ServerMessage.Eliminated, { byId: player.id });
-        this.checkRoundEnd();
-      }
+      this.applyHit(player, client, victim, WEAPON_DAMAGE, false, res.hx, res.hy, res.hz);
       return;
     }
 
     if (res.kind === "wrong") {
-      // Shooting a decoy destroys it (and still costs the hunter a small penalty).
+      // Decoy clone: destroy it and REWARD the hunter with reserve ammo for
+      // clearing bait (no health loss, no score penalty — it's a good play).
       if (res.targetId && res.targetId.startsWith("decoy:")) {
         const decoyId = res.targetId.slice("decoy:".length);
         const idx = this.state.decoys.findIndex((dd) => dd.id === decoyId);
         if (idx >= 0) this.state.decoys.splice(idx, 1);
+        player.reserve += DECOY_AMMO_REWARD;
+        client.send(ServerMessage.ShotResult, { hit: false, wrong: false, decoy: true, hx: res.hx, hy: res.hy, hz: res.hz });
+        return;
       }
-      // Shot a real object / decoy: self-penalty.
-      player.health = Math.max(1, player.health - WRONG_SHOT_SELF_DAMAGE);
+      // Shot real scenery: no health loss anymore — just a small score ding and
+      // the wasted round (ammo is now a finite resource, which is the real cost).
       player.score = Math.max(0, player.score - SCORE_WRONG_SHOT_PENALTY);
       client.send(ServerMessage.ShotResult, { hit: false, wrong: true, hx: res.hx, hy: res.hy, hz: res.hz });
       return;
@@ -412,11 +407,73 @@ export class GameRoom extends Room<GameState> {
     client.send(ServerMessage.ShotResult, { hit: false, wrong: false });
   }
 
+  /** Short-range melee — the fallback attack when a hunter has no ammo left. */
+  private handleMelee(client: Client, p: ShootPayload) {
+    const player = this.state.players.get(client.sessionId);
+    const m = this.meta.get(client.sessionId);
+    if (!player || !m || !player.alive) return;
+    if (player.team !== Team.Hunters || this.state.phase !== Phase.Hunt) return;
+    if (!isFiniteVec(p?.ox, p?.oy, p?.oz) || !isFiniteVec(p?.dx, p?.dy, p?.dz)) return;
+
+    // Same origin anti-cheat as shooting.
+    const eyeY = player.y + PLAYER_EYE_HEIGHT;
+    if (Math.hypot(p.ox - player.x, p.oz - player.z) > 3.0 || Math.abs(p.oy - eyeY) > 4.0) return;
+
+    const now = Date.now();
+    if (now - m.lastMeleeAt < MELEE_COOLDOWN_MS) return;
+    m.lastMeleeAt = now;
+
+    // Melee only connects with disguised/undisguised PROPS, at very short range.
+    const res = resolveShot(
+      { ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz },
+      this.propPlayerTargets(player),
+      [],
+      MELEE_RANGE,
+    );
+    if (res.kind === "hit" && res.targetId) {
+      const victim = this.state.players.get(res.targetId);
+      if (victim) this.applyHit(player, client, victim, MELEE_DAMAGE, true, res.hx, res.hy, res.hz);
+      return;
+    }
+    client.send(ServerMessage.ShotResult, { hit: false, wrong: false, melee: true });
+  }
+
+  /** Authoritative target cylinders for the props a shooter can hit. */
+  private propPlayerTargets(shooter: Player): CylinderTarget[] {
+    const targets: CylinderTarget[] = [];
+    this.state.players.forEach((other) => {
+      if (other === shooter || !other.alive || other.team !== Team.Props) return;
+      const model = PROP_MODELS[other.propModel];
+      const radius = (model ? model.radius : PLAYER_RADIUS) * HIT_RADIUS_BUFFER;
+      const height = model ? model.height : PLAYER_HIT_HEIGHT;
+      targets.push({ id: other.id, x: other.x, z: other.z, baseY: other.y, radius, height });
+    });
+    return targets;
+  }
+
+  /** Apply damage from a shot or melee to a victim prop and resolve a kill. */
+  private applyHit(attacker: Player, attackerClient: Client, victim: Player, amount: number, melee: boolean, hx?: number, hy?: number, hz?: number) {
+    victim.health = Math.max(0, victim.health - amount);
+    const killed = victim.health <= 0;
+    attackerClient.send(ServerMessage.ShotResult, { hit: true, wrong: false, melee, targetId: victim.id, damage: amount, killed, hx, hy, hz });
+    const victimClient = this.clients.find((c) => c.sessionId === victim.id);
+    victimClient?.send(ServerMessage.Hit, { amount, health: victim.health, byId: attacker.id });
+    if (killed) {
+      victim.alive = false;
+      victim.moving = false;
+      attacker.score += SCORE_PER_PROP_KILL;
+      this.state.huntersScore += SCORE_PER_PROP_KILL;
+      this.broadcast(ServerMessage.Killfeed, { killerName: attacker.name, victimName: victim.name });
+      victimClient?.send(ServerMessage.Eliminated, { byId: attacker.id });
+      this.checkRoundEnd();
+    }
+  }
+
   private handleReload(client: Client) {
     const player = this.state.players.get(client.sessionId);
     const m = this.meta.get(client.sessionId);
     if (!player || !m || player.team !== Team.Hunters || !player.alive) return;
-    if (player.reloading || player.ammo >= WEAPON_MAG_SIZE) return;
+    if (player.reloading || player.ammo >= WEAPON_MAG_SIZE || player.reserve <= 0) return;
     player.reloading = true;
     m.reloadDoneAt = Date.now() + WEAPON_RELOAD_MS;
   }
@@ -474,7 +531,9 @@ export class GameRoom extends Room<GameState> {
       const m = this.meta.get(player.id);
       if (player.reloading && m && now >= m.reloadDoneAt) {
         player.reloading = false;
-        player.ammo = WEAPON_MAG_SIZE;
+        const take = Math.min(WEAPON_MAG_SIZE - player.ammo, player.reserve);
+        player.ammo += take;
+        player.reserve -= take;
       }
     });
 
@@ -629,6 +688,7 @@ export class GameRoom extends Room<GameState> {
         player.z = s.z;
         player.ry = s.ry;
         player.ammo = WEAPON_MAG_SIZE;
+        player.reserve = WEAPON_RESERVE_AMMO;
       } else {
         const s = map.propSpawns[pi % map.propSpawns.length];
         pi++;
@@ -637,6 +697,7 @@ export class GameRoom extends Room<GameState> {
         player.z = s.z;
         player.ry = s.ry;
         player.ammo = 0;
+        player.reserve = 0;
       }
     });
   }

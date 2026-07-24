@@ -41,7 +41,7 @@ export class HUD {
         <div class="health-bar"><div class="health-fill" data-r="health" style="width:100%"></div></div>
       </div>
       <div class="hud-bottom-right hidden" data-r="weapon">
-        <div class="ammo"><span data-r="ammo">8</span><span class="mag">/${WEAPON_MAG_SIZE}</span></div>
+        <div class="ammo"><span data-r="ammo">8</span><span class="mag">/${WEAPON_MAG_SIZE}</span><span class="reserve" data-r="reserve">120</span></div>
         <div class="sub" data-r="wstate">R to reload</div>
       </div>
       <div class="killfeed" data-r="killfeed"></div>
@@ -111,7 +111,16 @@ export class HUD {
     this.refs.crosshair.classList.toggle("hidden", !isHunter || !me?.alive);
     if (isHunter && me) {
       this.refs.ammo.textContent = String(me.ammo);
-      this.refs.wstate.textContent = me.reloading ? "Reloading…" : me.ammo === 0 ? "Press R" : "R to reload";
+      this.refs.reserve.textContent = String(me.reserve);
+      const empty = me.ammo === 0 && me.reserve === 0;
+      this.refs.weapon.classList.toggle("melee", empty);
+      this.refs.wstate.textContent = me.reloading
+        ? "Reloading…"
+        : empty
+          ? "Out of ammo · F: axe"
+          : me.ammo === 0
+            ? "Reload (R) · F axe"
+            : "R reload · F axe";
     }
   }
 

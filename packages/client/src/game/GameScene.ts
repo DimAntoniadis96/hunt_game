@@ -14,6 +14,7 @@ import {
   DEFAULT_MAP_ID,
   HUNTER_WALK_SPEED,
   MAPS,
+  MELEE_COOLDOWN_MS,
   PROP_MODELS,
   PROP_WALK_SPEED,
   Phase,
@@ -59,10 +60,12 @@ export class GameScene {
 
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
+  private axeRoot: TransformNode | null = null;
   private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
   private decoyReadyAt = 0; // performance.now() when the next decoy (F) is allowed
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
+  private lastMeleeTime = -9999;
   private reloadStart = 0;
   private prevReloading = false;
   private prevLocked = false;
@@ -94,6 +97,7 @@ export class GameScene {
     this.input.onJump = () => this.audio.play("jump");
 
     this.buildGunViewmodel();
+    this.buildAxeViewmodel();
 
     this.registerActionInput();
     this.registerServerEvents();
@@ -148,6 +152,61 @@ export class GameScene {
     this.gunRoot = root;
     this.gunMuzzle = muzzle;
     root.setEnabled(false);
+  }
+
+  /** A hand axe held in the LEFT hand — the hunter's melee, swung with F. */
+  private buildAxeViewmodel() {
+    const wood = new StandardMaterial("axeWood", this.scene);
+    wood.diffuseColor = new Color3(0.36, 0.24, 0.13);
+    wood.emissiveColor = new Color3(0.12, 0.08, 0.05);
+    wood.specularColor = new Color3(0.1, 0.1, 0.1);
+    const metal = new StandardMaterial("axeMetal", this.scene);
+    metal.diffuseColor = new Color3(0.5, 0.53, 0.58);
+    metal.emissiveColor = new Color3(0.13, 0.14, 0.17); // readable but not blinding
+    metal.specularColor = new Color3(0.5, 0.5, 0.55);
+
+    const root = new TransformNode("axevm", this.scene);
+    root.parent = this.input.camera; // rides with the view, left side
+    root.position.set(-0.42, -0.42, 0.74);
+    root.rotation.set(-0.25, 0, 0.5); // held up-and-inward at rest
+    root.scaling.setAll(0.72); // keep it framing the corner, not dominating the view
+
+    const handle = MeshBuilder.CreateCylinder("axeHandle", { diameter: 0.05, height: 0.62, tessellation: 8 }, this.scene);
+    handle.material = wood;
+    // Axe head near the top of the handle: a blade block + a bevel wedge.
+    const head = MeshBuilder.CreateBox("axeHead", { width: 0.06, height: 0.19, depth: 0.26 }, this.scene);
+    head.position.set(0, 0.26, 0.06);
+    head.material = metal;
+    const bevel = MeshBuilder.CreateCylinder("axeBevel", { diameterTop: 0.0, diameterBottom: 0.19, height: 0.14, tessellation: 3 }, this.scene);
+    bevel.rotation.set(Math.PI / 2, 0, 0);
+    bevel.position.set(0, 0.26, 0.2);
+    bevel.material = metal;
+    for (const m of [handle, head, bevel]) {
+      m.parent = root;
+      m.isPickable = false;
+      m.renderingGroupId = 1; // draw on top so it doesn't clip into walls
+    }
+
+    this.axeRoot = root;
+    root.setEnabled(false);
+  }
+
+  /** Rest pose + a chopping swing arc driven by the last F melee. */
+  private animateAxe() {
+    if (!this.axeRoot) return;
+    const now = performance.now();
+    let rx = -0.25;
+    let rz = 0.5;
+    let z = 0.74;
+    const st = (now - this.lastMeleeTime) / 300; // ~300ms swing
+    if (st >= 0 && st < 1) {
+      const s = Math.sin(st * Math.PI); // 0 -> 1 -> 0 (raise into a downward chop)
+      rx = -0.25 + 1.7 * s; // blade swings down and across
+      rz = 0.5 - 0.35 * s;
+      z = 0.74 + 0.28 * s; // reach forward
+    }
+    this.axeRoot.rotation.set(rx, 0, rz);
+    this.axeRoot.position.set(-0.42, -0.42, z);
   }
 
   /** Animates the first-person gun: recoil on fire + a visible reload motion. */
@@ -216,7 +275,11 @@ export class GameScene {
     }
     const showGun = !!me && me.team === Team.Hunters && me.alive && this.currentMode === "fp";
     this.gunRoot?.setEnabled(showGun);
-    if (showGun && me) this.animateGun(me);
+    this.axeRoot?.setEnabled(showGun);
+    if (showGun && me) {
+      this.animateGun(me);
+      this.animateAxe();
+    }
 
     const frozen = !me || !me.alive || (phase === Phase.Prep && me.team === Team.Hunters);
     this.input.setFrozen(frozen);
@@ -400,7 +463,9 @@ export class GameScene {
           }
           break;
         case "KeyF":
-          if (me.team === Team.Props && me.alive && me.propModel) {
+          if (me.team === Team.Hunters && me.alive) {
+            this.tryMelee(); // axe swing — always available, independent of ammo
+          } else if (me.team === Team.Props && me.alive && me.propModel) {
             const now = performance.now();
             if (now < this.decoyReadyAt) {
               this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900);
@@ -438,6 +503,7 @@ export class GameScene {
     if (!me || me.team !== Team.Hunters || !me.alive) return;
     if (state.phase !== Phase.Hunt) return;
     if (me.reloading || me.ammo <= 0) {
+      // Empty / reloading: just an empty click. Melee is the axe (F), not the gun.
       this.audio.play("ui");
       return;
     }
@@ -456,6 +522,21 @@ export class GameScene {
     }
     this.lastShotTime = performance.now(); // recoil handled in animateGun()
     this.spawnTracer(from, o.add(d.scale(45)));
+  }
+
+  /** Axe swing (F) — a short-range melee, usable any time regardless of ammo. */
+  private tryMelee() {
+    const me = this.me();
+    const state = this.room.state as any;
+    if (!me || me.team !== Team.Hunters || !me.alive || state.phase !== Phase.Hunt) return;
+    const now = performance.now();
+    if (now - this.lastMeleeTime < MELEE_COOLDOWN_MS) return;
+    this.lastMeleeTime = now; // drives the axe swing arc in animateAxe()
+    const cam = this.input.camera;
+    const o = cam.position;
+    const d = cam.getDirection(Vector3.Forward());
+    this.net.melee({ ox: o.x, oy: o.y, oz: o.z, dx: d.x, dy: d.y, dz: d.z, seq: this.input.seq });
+    this.audio.play("jump"); // a swing whoosh (swap for a real axe sample later)
   }
 
   private tryDisguise() {
@@ -507,8 +588,12 @@ export class GameScene {
       if (m.hit) {
         this.hud.setCrosshairHit(true, false);
         this.audio.play("hit");
+      } else if (m.decoy) {
+        // Destroyed a decoy clone → ammo reward. Positive cue, no penalty.
+        this.hud.setCrosshairHit(true, false);
+        this.audio.play("transform");
       } else if (m.wrong) {
-        this.hud.setCrosshairHit(false, true); // red crosshair flash + health drop are the cue
+        this.hud.setCrosshairHit(false, true); // red crosshair flash is the only cue now
         this.audio.play("hit");
       }
     });

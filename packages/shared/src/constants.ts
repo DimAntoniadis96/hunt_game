@@ -44,12 +44,20 @@ export const PLAYER_MAX_HEALTH = 100;
 
 /** Hunter weapon. */
 export const WEAPON_DAMAGE = 34; // 3 shots to kill a full-health prop
-export const WEAPON_MAG_SIZE = 8;
+export const WEAPON_MAG_SIZE = 8; // rounds per magazine
+export const WEAPON_RESERVE_AMMO = 120; // total spare rounds a hunter starts a round with
 export const WEAPON_RELOAD_MS = 1600;
 export const WEAPON_FIRE_COOLDOWN_MS = 220; // server-enforced min gap between shots
 export const WEAPON_RANGE = 60; // metres — hitscan max distance
-/** Penalty when a hunter shoots the world / a non-prop (discourages spraying). */
-export const WRONG_SHOT_SELF_DAMAGE = 8;
+/** Ammo refunded to a hunter's reserve for destroying a prop's decoy clone. */
+export const DECOY_AMMO_REWARD = 5;
+/** @deprecated Wrong shots no longer cost the hunter health. Kept for compatibility. */
+export const WRONG_SHOT_SELF_DAMAGE = 0;
+
+/** Melee (pistol-whip) — the fallback attack when a hunter is out of ammo. */
+export const MELEE_RANGE = 3.2; // metres — very short reach
+export const MELEE_DAMAGE = 55; // two swings down a full-health prop
+export const MELEE_COOLDOWN_MS = 600; // min gap between swings
 
 /** Prop scoring. */
 export const SCORE_PER_PROP_KILL = 100; // hunter killing a prop

@@ -38,6 +38,7 @@ export const ClientMessage = {
   Transform: "transform", // prop wants to disguise as a map object
   LockRotation: "lock_rotation",
   Shoot: "shoot", // hunter fires
+  Melee: "melee", // hunter's out-of-ammo close attack
   Reload: "reload",
   Taunt: "taunt",
   Decoy: "decoy", // prop drops a fake clone of its current disguise
@@ -107,7 +108,9 @@ export interface WelcomePayload {
 
 export interface ShotResultPayload {
   hit: boolean;
-  wrong: boolean; // shot a non-prop world object -> penalty
+  wrong: boolean; // shot a non-prop world object
+  decoy?: boolean; // destroyed a decoy clone (+ammo reward)
+  melee?: boolean; // this result was from a melee swing
   targetId?: string;
   damage?: number;
   killed?: boolean;
@@ -159,7 +162,8 @@ export interface PlayerView {
   moving: boolean;
   health: number;
   alive: boolean;
-  ammo: number;
+  ammo: number; // rounds in the current magazine
+  reserve: number; // spare rounds available to reload from
   reloading: boolean;
   /** "" when a hunter or an untransformed prop; otherwise the prop model key. */
   propModel: string;

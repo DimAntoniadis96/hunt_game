@@ -35,7 +35,8 @@ export class Player extends Schema {
   // Combat / life.
   @type("number") health = 100;
   @type("boolean") alive = true;
-  @type("number") ammo = 8;
+  @type("number") ammo = 8; // rounds in the magazine
+  @type("number") reserve = 0; // spare rounds (hunters get a pool each round)
   @type("boolean") reloading = false;
 
   // Prop disguise. "" = not disguised (or is a hunter).

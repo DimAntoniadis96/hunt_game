@@ -95,6 +95,9 @@ export class NetworkClient {
   shoot(p: ShootPayload) {
     this.room?.send(ClientMessage.Shoot, p);
   }
+  melee(p: ShootPayload) {
+    this.room?.send(ClientMessage.Melee, p);
+  }
   reload() {
     this.room?.send(ClientMessage.Reload, {});
   }

@@ -329,6 +329,24 @@ button:disabled {
   color: var(--muted);
   font-size: 16px;
 }
+.ammo .reserve {
+  color: var(--muted);
+  font-size: 15px;
+  margin-left: 8px;
+}
+.ammo .reserve::before {
+  content: "▮ ";
+  opacity: 0.5;
+  font-size: 12px;
+}
+/* Out of ammo: highlight the panel so the melee fallback is obvious. */
+.hud-bottom-right.melee .ammo,
+.hud-bottom-right.melee .sub {
+  color: var(--accent-2);
+}
+.hud-bottom-right.melee {
+  border-color: var(--accent-2);
+}
 
 .killfeed {
   position: absolute;
