@@ -18,6 +18,7 @@ import {
   Phase,
   ServerMessage,
   Team,
+  TRANSFORM_COOLDOWN_MS,
   WEAPON_RELOAD_MS,
   type DecoyView,
   type PlayerView,
@@ -57,6 +58,8 @@ export class GameScene {
 
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
+  private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
+  private lastDisguiseModel = "";
   private lastShotTime = -9999;
   private reloadStart = 0;
   private prevReloading = false;
@@ -192,6 +195,8 @@ export class GameScene {
     if (phase === Phase.Prep && this.prevPhase !== Phase.Prep && me) {
       this.input.teleport(me.x, me.y, me.z, me.ry);
       this.input.setRotationLocked(false); // fresh round starts unlocked
+      this.transformReadyAt = 0; // disguise cooldown resets each round
+      this.lastDisguiseModel = "";
     }
     if (me && me.alive !== this.prevAlive && !me.alive) {
       this.input.teleport(me.x, me.y, me.z);
@@ -325,20 +330,40 @@ export class GameScene {
 
   private updatePrompts(me: PlayerView | undefined, phase: Phase) {
     if (!me || !me.alive) return this.hud.prompt(null);
-    if (me.team === Team.Props && (phase === Phase.Prep || phase === Phase.Hunt)) {
-      const near = this.nearestProp();
-      const disguised = !!me.propModel;
-      const extra = disguised ? ` · <kbd>R</kbd> lock · <kbd>F</kbd> decoy · <kbd>T</kbd> taunt` : ` · <kbd>R</kbd> lock`;
-      if (near) {
-        this.hud.prompt(`<kbd>E</kbd> disguise as ${PROP_MODELS[near.modelKey]?.label ?? near.modelKey}${extra}`);
-      } else if (disguised) {
-        this.hud.prompt(`<kbd>R</kbd> lock in place · <kbd>F</kbd> drop decoy · <kbd>T</kbd> taunt`);
-      } else {
-        this.hud.prompt(`Walk up to an object, then press <kbd>E</kbd> to disguise`);
-      }
-    } else {
-      this.hud.prompt(null);
+    if (me.team !== Team.Props || (phase !== Phase.Prep && phase !== Phase.Hunt)) {
+      return this.hud.prompt(null);
     }
+
+    const near = this.nearestProp();
+    const disguised = !!me.propModel;
+    const cdSec = Math.ceil(Math.max(0, this.transformReadyAt - performance.now()) / 1000);
+    const segs: string[] = [];
+
+    // Disguise / change segment.
+    if (near) {
+      const label = PROP_MODELS[near.modelKey]?.label ?? near.modelKey;
+      const sameModel = near.modelKey === me.propModel;
+      if (disguised && !sameModel && cdSec > 0) {
+        segs.push(`<kbd>E</kbd> change in <span class="cd">${cdSec}s</span>`);
+      } else if (disguised && sameModel) {
+        // Standing on your current disguise — nothing new to copy; guide to actions.
+      } else {
+        segs.push(`<kbd class="key-primary">E</kbd> ${disguised ? "become" : "disguise as"} ${label}`);
+      }
+    } else if (!disguised) {
+      segs.push(`Walk to an object, then <kbd class="key-primary">E</kbd>`);
+    }
+
+    // Action hints once disguised.
+    if (disguised) {
+      segs.push(`<kbd>R</kbd> lock`);
+      segs.push(`<kbd>F</kbd> decoy`);
+      segs.push(`<kbd>T</kbd> taunt`);
+    } else {
+      segs.push(`<kbd>R</kbd> lock`);
+    }
+
+    this.hud.prompt(segs.join(`<span class="sep">·</span>`));
   }
 
   private nearestProp(): { id: string; modelKey: string; d: number } | null {
@@ -441,6 +466,15 @@ export class GameScene {
       this.hud.banner("No object close enough to copy", 1200);
       return;
     }
+    const me = this.me();
+    // Client-side cooldown guard (server also enforces): block only a real CHANGE
+    // to a different model — re-copying your current disguise is a harmless no-op.
+    const cdMs = this.transformReadyAt - performance.now();
+    if (me?.propModel && near.modelKey !== me.propModel && cdMs > 0) {
+      this.hud.banner(`Can change disguise in ${Math.ceil(cdMs / 1000)}s`, 1200);
+      this.audio.play("ui");
+      return;
+    }
     this.net.transform(near.id);
   }
 
@@ -492,6 +526,11 @@ export class GameScene {
     });
     room.onMessage(ServerMessage.TransformResult, (m: any) => {
       if (m.ok) {
+        // Only (re)start the cooldown when the disguise actually changed.
+        if (m.modelKey !== this.lastDisguiseModel) {
+          this.transformReadyAt = performance.now() + (m.cooldownMs ?? TRANSFORM_COOLDOWN_MS);
+          this.lastDisguiseModel = m.modelKey;
+        }
         this.hud.banner(`Disguised as ${PROP_MODELS[m.modelKey]?.label ?? m.modelKey}`, 1200);
         this.audio.play("transform");
       } else {

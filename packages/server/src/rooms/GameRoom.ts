@@ -38,6 +38,7 @@ import {
   SPEED_TOLERANCE,
   ServerMessage,
   TAUNT_COOLDOWN_MS,
+  TRANSFORM_COOLDOWN_MS,
   Team,
   WEAPON_DAMAGE,
   WEAPON_FIRE_COOLDOWN_MS,
@@ -73,6 +74,7 @@ interface ClientMeta {
   reloadDoneAt: number;
   lastTauntAt: number;
   lastDecoyAt: number;
+  lastTransformAt: number;
   msgWindowStart: number;
   msgCount: number;
   disconnectedAt: number;
@@ -124,6 +126,7 @@ export class GameRoom extends Room<GameState> {
       reloadDoneAt: 0,
       lastTauntAt: 0,
       lastDecoyAt: 0,
+      lastTransformAt: 0,
       msgWindowStart: Date.now(),
       msgCount: 0,
       disconnectedAt: 0,
@@ -286,7 +289,8 @@ export class GameRoom extends Room<GameState> {
 
   private handleTransform(client: Client, p: TransformPayload) {
     const player = this.state.players.get(client.sessionId);
-    if (!player || !player.alive) return;
+    const m = this.meta.get(client.sessionId);
+    if (!player || !m || !player.alive) return;
     if (player.team !== Team.Props) {
       return client.send(ServerMessage.TransformResult, { ok: false, reason: "Only props can disguise." });
     }
@@ -302,13 +306,26 @@ export class GameRoom extends Room<GameState> {
     if (!model || !model.disguiseAllowed) {
       return client.send(ServerMessage.TransformResult, { ok: false, reason: "That object can't be copied." });
     }
+    // Cooldown between disguise changes (server-authoritative). The first disguise
+    // of a life is free; changing again is gated so props can't flicker models to
+    // dodge a hunter's aim. Re-copying the SAME model is a no-op and not penalised.
+    const now = Date.now();
+    if (player.propModel !== model.key) {
+      const since = now - m.lastTransformAt;
+      if (m.lastTransformAt > 0 && since < TRANSFORM_COOLDOWN_MS) {
+        const wait = Math.ceil((TRANSFORM_COOLDOWN_MS - since) / 1000);
+        return client.send(ServerMessage.TransformResult, { ok: false, reason: `Changing again in ${wait}s`, cooldownMs: TRANSFORM_COOLDOWN_MS - since });
+      }
+    }
     // Must be near the object being copied (server-side proximity check).
     const d = Math.hypot(player.x - spawn.x, player.z - spawn.z);
     if (d > COPY_RANGE) {
       return client.send(ServerMessage.TransformResult, { ok: false, reason: "Too far from that object." });
     }
+    const changed = player.propModel !== model.key;
     player.propModel = model.key;
-    client.send(ServerMessage.TransformResult, { ok: true, propId: spawn.id, modelKey: model.key });
+    if (changed) m.lastTransformAt = now;
+    client.send(ServerMessage.TransformResult, { ok: true, propId: spawn.id, modelKey: model.key, cooldownMs: TRANSFORM_COOLDOWN_MS });
   }
 
   private handleShoot(client: Client, p: ShootPayload) {

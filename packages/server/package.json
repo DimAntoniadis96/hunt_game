@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "npm run build && run-p -l dev:watch dev:serve",
     "dev:watch": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
-    "dev:serve": "node --enable-source-maps --watch-path=./dist dist/index.js",
+    "dev:serve": "node --enable-source-maps --watch-path=./dist --watch-path=../shared/dist dist/index.js",
     "build": "tsc -p tsconfig.build.json",
     "start": "node --enable-source-maps dist/index.js",
     "typecheck": "tsc --noEmit"

@@ -155,22 +155,33 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   flat("gardenBedW", 12, 12, -30, 1, "#6b4a2e");
   flat("gardenBedNE", 10, 10, 30, 15, "#6b4a2e");
 
-  // Full perimeter fence.
+  // Full perimeter fence. The wall slabs are pushed OUTWARD by half their
+  // thickness so each inner face sits exactly on the bounds line (minX/maxX/…).
+  // That makes the collision stop (bound + player radius) line up perfectly with
+  // the server/client hard clamp (also bound + player radius) — so a player who
+  // walks into the wall stops cleanly instead of being clamped to one spot and
+  // then ejected to another (the "stuck / drops me back" rubber-band). Spans are
+  // extended by fenceT so the corners still overlap.
   const fenceH = 1.9;
   const fenceMat = "#8a6a3f";
   const postMat = "#6f5330";
   const fenceT = 0.6; // thick enough that fast movement can't tunnel through it
+  const ht = fenceT / 2;
   const edges: Array<[number, number, number, number]> = [
-    [(minX + maxX) / 2, minZ, w, fenceT],
-    [(minX + maxX) / 2, maxZ, w, fenceT],
-    [minX, cz, fenceT, d],
-    [maxX, cz, fenceT, d],
+    [(minX + maxX) / 2, minZ - ht, w + fenceT, fenceT], // south
+    [(minX + maxX) / 2, maxZ + ht, w + fenceT, fenceT], // north
+    [minX - ht, cz, fenceT, d + fenceT], // west
+    [maxX + ht, cz, fenceT, d + fenceT], // east
   ];
   for (const [x, z, W, D] of edges) box("fence", W, fenceH, D, x, fenceH / 2, z, fenceMat, true, 0.08);
-  for (let x = minX; x <= maxX; x += 4) box("post", 0.28, fenceH + 0.25, 0.28, x, (fenceH + 0.25) / 2, minZ, postMat, false, 0.08);
+  const postH = fenceH + 0.25;
+  for (let x = minX; x <= maxX; x += 4) {
+    box("post", 0.28, postH, 0.28, x, postH / 2, minZ - ht, postMat, false, 0.08);
+    box("post", 0.28, postH, 0.28, x, postH / 2, maxZ + ht, postMat, false, 0.08);
+  }
   for (let z = minZ; z <= maxZ; z += 4) {
-    box("post", 0.28, fenceH + 0.25, 0.28, minX, (fenceH + 0.25) / 2, z, postMat, false, 0.08);
-    box("post", 0.28, fenceH + 0.25, 0.28, maxX, (fenceH + 0.25) / 2, z, postMat, false, 0.08);
+    box("post", 0.28, postH, 0.28, minX - ht, postH / 2, z, postMat, false, 0.08);
+    box("post", 0.28, postH, 0.28, maxX + ht, postH / 2, z, postMat, false, 0.08);
   }
 
   // ---- House (north) ----

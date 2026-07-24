@@ -59,6 +59,9 @@ export const SCORE_WRONG_SHOT_PENALTY = 25;
 /** Taunt: props are periodically forced/allowed to emit a locator sound. */
 export const TAUNT_COOLDOWN_MS = 12000;
 
+/** Cooldown between disguise changes (ms). Stops instant model-flicker to dodge. */
+export const TRANSFORM_COOLDOWN_MS = 5000;
+
 /** Decoy clones: props drop fake copies of their current disguise to mislead. */
 export const MAX_DECOYS_PER_PLAYER = 2;
 export const DECOY_COOLDOWN_MS = 3500;
