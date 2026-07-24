@@ -276,6 +276,18 @@ button:disabled {
 .crosshair.hit {
   filter: drop-shadow(0 0 4px var(--danger));
 }
+/* Small red aiming dot in the exact centre — readable against bright/white areas. */
+.crosshair .dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: #ff2d21;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+}
 
 .hud-bottom-left {
   position: absolute;

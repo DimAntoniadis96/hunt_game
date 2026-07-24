@@ -34,7 +34,7 @@ export class HUD {
         <span class="sub" data-r="sub"></span>
       </div>
       <div class="ping" data-r="ping">ping -- ms</div>
-      <div class="crosshair hidden" data-r="crosshair"></div>
+      <div class="crosshair hidden" data-r="crosshair"><i class="dot"></i></div>
       <div class="hud-bottom-left">
         <div data-r="teamlabel" style="font-weight:700">—</div>
         <div class="sub" data-r="lifelabel">Health</div>

@@ -10,6 +10,7 @@ import {
 } from "@babylonjs/core";
 import {
   CLIENT_INPUT_RATE,
+  DECOY_COOLDOWN_MS,
   DEFAULT_MAP_ID,
   HUNTER_WALK_SPEED,
   MAPS,
@@ -59,6 +60,7 @@ export class GameScene {
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
   private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
+  private decoyReadyAt = 0; // performance.now() when the next decoy (F) is allowed
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
   private reloadStart = 0;
@@ -196,6 +198,7 @@ export class GameScene {
       this.input.teleport(me.x, me.y, me.z, me.ry);
       this.input.setRotationLocked(false); // fresh round starts unlocked
       this.transformReadyAt = 0; // disguise cooldown resets each round
+      this.decoyReadyAt = 0;
       this.lastDisguiseModel = "";
     }
     if (me && me.alive !== this.prevAlive && !me.alive) {
@@ -334,33 +337,23 @@ export class GameScene {
       return this.hud.prompt(null);
     }
 
-    const near = this.nearestProp();
+    // Static hint — no per-frame proximity scan (the actual nearest object is only
+    // resolved on the E press). Keeps the render loop cheap and stops the label
+    // flickering the name of every object you walk past.
     const disguised = !!me.propModel;
-    const cdSec = Math.ceil(Math.max(0, this.transformReadyAt - performance.now()) / 1000);
+    const now = performance.now();
     const segs: string[] = [];
 
-    // Disguise / change segment.
-    if (near) {
-      const label = PROP_MODELS[near.modelKey]?.label ?? near.modelKey;
-      const sameModel = near.modelKey === me.propModel;
-      if (disguised && !sameModel && cdSec > 0) {
-        segs.push(`<kbd>E</kbd> change in <span class="cd">${cdSec}s</span>`);
-      } else if (disguised && sameModel) {
-        // Standing on your current disguise — nothing new to copy; guide to actions.
-      } else {
-        segs.push(`<kbd class="key-primary">E</kbd> ${disguised ? "become" : "disguise as"} ${label}`);
-      }
-    } else if (!disguised) {
-      segs.push(`Walk to an object, then <kbd class="key-primary">E</kbd>`);
-    }
-
-    // Action hints once disguised.
-    if (disguised) {
+    if (!disguised) {
+      segs.push(`<kbd class="key-primary">E</kbd> disguise`);
       segs.push(`<kbd>R</kbd> lock`);
-      segs.push(`<kbd>F</kbd> decoy`);
-      segs.push(`<kbd>T</kbd> taunt`);
     } else {
+      const changeCd = Math.ceil(Math.max(0, this.transformReadyAt - now) / 1000);
+      segs.push(changeCd > 0 ? `<kbd>E</kbd> change <span class="cd">${changeCd}s</span>` : `<kbd class="key-primary">E</kbd> change`);
       segs.push(`<kbd>R</kbd> lock`);
+      const decoyCd = Math.ceil(Math.max(0, this.decoyReadyAt - now) / 1000);
+      segs.push(decoyCd > 0 ? `<kbd>F</kbd> decoy <span class="cd">${decoyCd}s</span>` : `<kbd>F</kbd> decoy`);
+      segs.push(`<kbd>T</kbd> taunt`);
     }
 
     this.hud.prompt(segs.join(`<span class="sep">·</span>`));
@@ -403,15 +396,20 @@ export class GameScene {
             const nl = !this.input.isRotationLocked();
             this.input.setRotationLocked(nl); // instant local freeze (incl. mid-air)
             this.net.lockRotation(nl); // so other players see the frozen facing
-            this.hud.banner(nl ? "Locked in place 🔒" : "Unlocked 🔓", 1000);
-            this.audio.play("ui");
+            this.audio.play("ui"); // no center banner — the frozen model + sound are the cue
           }
           break;
         case "KeyF":
           if (me.team === Team.Props && me.alive && me.propModel) {
-            this.net.decoy();
-            this.hud.banner("Decoy dropped 🎭", 900);
-            this.audio.play("transform");
+            const now = performance.now();
+            if (now < this.decoyReadyAt) {
+              this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900);
+              this.audio.play("ui");
+            } else {
+              this.net.decoy();
+              this.decoyReadyAt = now + DECOY_COOLDOWN_MS;
+              this.audio.play("transform"); // no center banner — the clone + sound are the cue
+            }
           }
           break;
         case "KeyT":
@@ -510,8 +508,7 @@ export class GameScene {
         this.hud.setCrosshairHit(true, false);
         this.audio.play("hit");
       } else if (m.wrong) {
-        this.hud.setCrosshairHit(false, true);
-        this.hud.banner("Wrong target! Health penalty", 1200);
+        this.hud.setCrosshairHit(false, true); // red crosshair flash + health drop are the cue
         this.audio.play("hit");
       }
     });
@@ -531,8 +528,7 @@ export class GameScene {
           this.transformReadyAt = performance.now() + (m.cooldownMs ?? TRANSFORM_COOLDOWN_MS);
           this.lastDisguiseModel = m.modelKey;
         }
-        this.hud.banner(`Disguised as ${PROP_MODELS[m.modelKey]?.label ?? m.modelKey}`, 1200);
-        this.audio.play("transform");
+        this.audio.play("transform"); // no center banner — the new model + sound are the cue
       } else {
         this.hud.banner(m.reason || "Can't disguise here", 1400);
         this.audio.play("ui");
