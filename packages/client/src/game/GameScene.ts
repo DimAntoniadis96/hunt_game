@@ -3,6 +3,7 @@ import {
   Scene,
   Vector3,
   Color3,
+  Mesh,
   MeshBuilder,
   StandardMaterial,
   TransformNode,
@@ -123,31 +124,49 @@ export class GameScene {
   // ---- gun viewmodel (hunter, first-person) -------------------------------
 
   private buildGunViewmodel() {
-    const mat = new StandardMaterial("gunMat", this.scene);
-    mat.diffuseColor = new Color3(0.28, 0.3, 0.36);
-    mat.emissiveColor = new Color3(0.18, 0.2, 0.26); // readable even in dark corners
-    mat.specularColor = new Color3(0.5, 0.5, 0.55);
+    // A chunky, colourful cartoon "tag blaster": teal body, dark funnel muzzle,
+    // a round drum mag, and a glowing orange energy tip (blooms via the GlowLayer).
+    const bodyMat = new StandardMaterial("gunBody", this.scene);
+    bodyMat.diffuseColor = new Color3(0.2, 0.79, 0.62);
+    bodyMat.emissiveColor = new Color3(0.08, 0.32, 0.25);
+    bodyMat.specularColor = new Color3(0.5, 0.6, 0.55);
+    const darkMat = new StandardMaterial("gunDark", this.scene);
+    darkMat.diffuseColor = new Color3(0.15, 0.17, 0.22);
+    darkMat.emissiveColor = new Color3(0.07, 0.08, 0.11);
+    const glowMat = new StandardMaterial("gunGlow", this.scene);
+    glowMat.emissiveColor = new Color3(1, 0.5, 0.2);
+    glowMat.disableLighting = true;
 
     const root = new TransformNode("gunvm", this.scene);
     root.parent = this.input.camera; // rides with the view
-    root.position.set(0.34, -0.32, 0.9);
+    root.position.set(0.34, -0.34, 0.86);
 
-    const body = MeshBuilder.CreateBox("gunBody", { width: 0.12, height: 0.16, depth: 0.5 }, this.scene);
-    const barrel = MeshBuilder.CreateCylinder("gunBarrel", { diameter: 0.055, height: 0.5, tessellation: 8 }, this.scene);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.03, 0.42);
-    const grip = MeshBuilder.CreateBox("gunGrip", { width: 0.09, height: 0.2, depth: 0.13 }, this.scene);
-    grip.position.set(0, -0.17, -0.12);
-    for (const m of [body, barrel, grip]) {
+    const part = (m: Mesh, mt: StandardMaterial) => {
       m.parent = root;
-      m.material = mat;
+      m.material = mt;
       m.isPickable = false;
       m.renderingGroupId = 1; // draw on top so it doesn't clip into walls
-    }
+      return m;
+    };
+    part(MeshBuilder.CreateBox("gunBody", { width: 0.15, height: 0.2, depth: 0.44 }, this.scene), bodyMat);
+    part(MeshBuilder.CreateBox("gunFin", { width: 0.05, height: 0.09, depth: 0.3 }, this.scene), darkMat).position.set(0, 0.14, 0.02);
+    const funnel = part(MeshBuilder.CreateCylinder("gunFunnel", { diameterTop: 0.2, diameterBottom: 0.1, height: 0.2, tessellation: 16 }, this.scene), darkMat);
+    funnel.rotation.x = Math.PI / 2;
+    funnel.position.set(0, 0.02, 0.36);
+    part(MeshBuilder.CreateSphere("gunTip", { diameter: 0.13, segments: 12 }, this.scene), glowMat).position.set(0, 0.02, 0.46);
+    const drum = part(MeshBuilder.CreateCylinder("gunDrum", { diameter: 0.23, height: 0.09, tessellation: 18 }, this.scene), bodyMat);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(0, -0.12, -0.05);
+    const hub = part(MeshBuilder.CreateCylinder("gunHub", { diameter: 0.08, height: 0.11, tessellation: 12 }, this.scene), glowMat);
+    hub.rotation.z = Math.PI / 2;
+    hub.position.set(0, -0.12, -0.05);
+    const grip = part(MeshBuilder.CreateBox("gunGrip", { width: 0.1, height: 0.22, depth: 0.14 }, this.scene), darkMat);
+    grip.position.set(0, -0.2, -0.16);
+    grip.rotation.x = -0.22;
 
     const muzzle = new TransformNode("muzzle", this.scene);
     muzzle.parent = root;
-    muzzle.position.set(0, 0.03, 0.7);
+    muzzle.position.set(0, 0.02, 0.5);
 
     this.gunRoot = root;
     this.gunMuzzle = muzzle;
@@ -165,27 +184,39 @@ export class GameScene {
     metal.emissiveColor = new Color3(0.13, 0.14, 0.17); // readable but not blinding
     metal.specularColor = new Color3(0.5, 0.5, 0.55);
 
+    const dark = new StandardMaterial("axeGrip", this.scene);
+    dark.diffuseColor = new Color3(0.1, 0.1, 0.12);
+    dark.emissiveColor = new Color3(0.04, 0.04, 0.05);
+    const glow = new StandardMaterial("axeRune", this.scene);
+    glow.emissiveColor = new Color3(1, 0.45, 0.15);
+    glow.disableLighting = true;
+
     const root = new TransformNode("axevm", this.scene);
     root.parent = this.input.camera; // rides with the view, left side
     root.position.set(-0.5, -0.52, 0.82);
     root.rotation.set(-0.25, 0, 0.5); // held up-and-inward at rest
-    root.scaling.setAll(0.98); // a big, chunky axe
+    root.scaling.setAll(1.02); // a big, chunky axe
 
-    const handle = MeshBuilder.CreateCylinder("axeHandle", { diameter: 0.05, height: 0.62, tessellation: 8 }, this.scene);
-    handle.material = wood;
-    // Axe head near the top of the handle: a blade block + a bevel wedge.
-    const head = MeshBuilder.CreateBox("axeHead", { width: 0.06, height: 0.19, depth: 0.26 }, this.scene);
-    head.position.set(0, 0.26, 0.06);
-    head.material = metal;
-    const bevel = MeshBuilder.CreateCylinder("axeBevel", { diameterTop: 0.0, diameterBottom: 0.19, height: 0.14, tessellation: 3 }, this.scene);
-    bevel.rotation.set(Math.PI / 2, 0, 0);
-    bevel.position.set(0, 0.26, 0.2);
-    bevel.material = metal;
-    for (const m of [handle, head, bevel]) {
+    const part = (m: Mesh, mt: StandardMaterial) => {
       m.parent = root;
+      m.material = mt;
       m.isPickable = false;
-      m.renderingGroupId = 1; // draw on top so it doesn't clip into walls
+      m.renderingGroupId = 1;
+      return m;
+    };
+    part(MeshBuilder.CreateCylinder("axeHandle", { diameter: 0.06, height: 0.66, tessellation: 8 }, this.scene), wood);
+    // Leather grip wraps near the bottom.
+    for (const gy of [-0.2, -0.13, -0.06]) {
+      part(MeshBuilder.CreateCylinder("axeWrap", { diameter: 0.075, height: 0.03, tessellation: 8 }, this.scene), dark).position.set(0, gy, 0);
     }
+    // Chunky head: a metal block, a wide cutting bevel, and a back poll.
+    part(MeshBuilder.CreateBox("axeHead", { width: 0.07, height: 0.22, depth: 0.2 }, this.scene), metal).position.set(0, 0.27, 0.03);
+    const blade = part(MeshBuilder.CreateCylinder("axeBlade", { diameterTop: 0.0, diameterBottom: 0.28, height: 0.2, tessellation: 3 }, this.scene), metal);
+    blade.rotation.set(Math.PI / 2, 0, 0);
+    blade.position.set(0, 0.27, 0.22);
+    part(MeshBuilder.CreateBox("axePoll", { width: 0.09, height: 0.15, depth: 0.11 }, this.scene), metal).position.set(0, 0.27, -0.1);
+    // A glowing rune on the cheek of the blade (a little flair).
+    part(MeshBuilder.CreateSphere("axeRune", { diameter: 0.06, segments: 8 }, this.scene), glow).position.set(0.04, 0.29, 0.12);
 
     this.axeRoot = root;
     root.setEnabled(false);

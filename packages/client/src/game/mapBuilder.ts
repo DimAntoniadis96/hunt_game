@@ -601,21 +601,65 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
   return root;
 }
 
-/** A simple stylized humanoid for hunters / undisguised players. */
+/**
+ * A goofy little cartoon character for hunters / undisguised players: a big
+ * round head with googly eyes and a grin, a chubby team-coloured body, stubby
+ * arms and legs, and a spinning-look propeller beanie. Faces +Z (its forward).
+ */
 export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043"): TransformNode {
   const root = new TransformNode(name, scene);
-  const body = MeshBuilder.CreateCapsule(name + "_body", { radius: 0.35, height: 1.7 }, scene);
-  body.parent = root;
-  body.position.y = 0.85;
-  body.material = mat(scene, hex, 0.12);
-  const head = MeshBuilder.CreateSphere(name + "_head", { diameter: 0.42, segments: 10 }, scene);
-  head.parent = root;
-  head.position.y = 1.55;
-  head.material = mat(scene, "#f2c9a0", 0.1);
-  const gun = MeshBuilder.CreateBox(name + "_gun", { width: 0.12, height: 0.12, depth: 0.6 }, scene);
-  gun.parent = root;
-  gun.position.set(0.25, 1.15, 0.4);
-  gun.material = mat(scene, "#20262e", 0.05);
+  const skin = "#f4cfa4";
+  const dark = "#2b2f38";
+  const capHex = hex === "#37d9a0" ? "#ff7043" : "#37d9a0"; // contrasting beanie
+  const add = (m: Mesh, hexColor: string, em = 0.1) => {
+    m.parent = root;
+    m.material = mat(scene, hexColor, em);
+    m.checkCollisions = false;
+    return m;
+  };
+
+  // Legs + feet.
+  for (const dx of [-0.16, 0.16]) {
+    add(MeshBuilder.CreateCylinder(name + "_leg", { diameter: 0.22, height: 0.5, tessellation: 10 }, scene), dark, 0.05).position.set(dx, 0.27, 0);
+    const foot = add(MeshBuilder.CreateSphere(name + "_foot", { diameter: 0.26, segments: 8 }, scene), "#3a2b1a", 0.04);
+    foot.position.set(dx, 0.07, 0.06);
+    foot.scaling.set(1, 0.6, 1.5);
+  }
+  // Chubby torso (team colour).
+  const torso = add(MeshBuilder.CreateCapsule(name + "_torso", { radius: 0.36, height: 0.95 }, scene), hex, 0.14);
+  torso.position.y = 0.92;
+  torso.scaling.set(1, 1, 0.9);
+  // Arms + hands.
+  for (const [dx, rz] of [[-0.42, 0.55], [0.42, -0.55]] as Array<[number, number]>) {
+    const arm = add(MeshBuilder.CreateCapsule(name + "_arm", { radius: 0.1, height: 0.5 }, scene), hex, 0.12);
+    arm.position.set(dx, 1.0, 0.04);
+    arm.rotation.z = rz;
+    add(MeshBuilder.CreateSphere(name + "_hand", { diameter: 0.18, segments: 8 }, scene), skin, 0.08).position.set(dx * 1.18, 0.74, 0.06);
+  }
+  // Big round head.
+  add(MeshBuilder.CreateSphere(name + "_head", { diameter: 0.62, segments: 14 }, scene), skin, 0.1).position.y = 1.66;
+  // Googly eyes (white + dark pupils) on the +Z face.
+  for (const dx of [-0.13, 0.13]) {
+    const eye = add(MeshBuilder.CreateSphere(name + "_eye", { diameter: 0.18, segments: 10 }, scene), "#ffffff", 0.25);
+    eye.position.set(dx, 1.7, 0.24);
+    eye.scaling.z = 0.6;
+    add(MeshBuilder.CreateSphere(name + "_pupil", { diameter: 0.08, segments: 8 }, scene), "#161616", 0).position.set(dx, 1.7, 0.33);
+  }
+  // Grin.
+  const grin = add(MeshBuilder.CreateTorus(name + "_grin", { diameter: 0.24, thickness: 0.035, tessellation: 12 }, scene), "#803030", 0.05);
+  grin.position.set(0, 1.56, 0.27);
+  grin.rotation.set(Math.PI / 2, 0, 0);
+  grin.scaling.y = 0.6; // just the bottom arc reads as a smile
+  // Propeller beanie: dome cap + hub + two blades.
+  const capMesh = add(MeshBuilder.CreateSphere(name + "_cap", { diameter: 0.52, segments: 12, slice: 0.5 }, scene), capHex, 0.16);
+  capMesh.position.y = 1.9;
+  add(MeshBuilder.CreateCylinder(name + "_capstick", { diameter: 0.05, height: 0.14, tessellation: 6 }, scene), dark, 0.05).position.y = 2.06;
+  for (const ry of [0, Math.PI / 2]) {
+    const blade = add(MeshBuilder.CreateBox(name + "_blade", { width: 0.34, height: 0.02, depth: 0.08 }, scene), "#e74c3c", 0.14);
+    blade.position.y = 2.14;
+    blade.rotation.y = ry;
+  }
+  add(MeshBuilder.CreateSphere(name + "_hub", { diameter: 0.09, segments: 8 }, scene), "#f1c40f", 0.2).position.y = 2.14;
   return root;
 }
 

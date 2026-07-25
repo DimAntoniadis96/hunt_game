@@ -2,8 +2,12 @@
  * Pure melee target selection — no Colyseus/Babylon deps so it can be unit
  * tested. The axe connects with whatever sits inside a short forward cone at the
  * crosshair centre (nearest wins), so it feels centred instead of a thin ray that
- * "misses to the side". Works for both prop players and decoy clones.
+ * "misses to the side". Works for both prop players and decoy clones, and is
+ * blocked by walls (can't axe someone through a hedge).
  */
+
+import type { Occluder } from "@mimic/shared";
+import { firstOccluderDistance } from "./hitscan.js";
 
 export interface MeleeTarget {
   kind: "player" | "decoy";
@@ -22,17 +26,19 @@ export interface MeleeHit {
 }
 
 /**
- * @param o      ray origin (the hunter's eye)
- * @param dir    aim direction (need not be normalised)
- * @param range  max reach in metres
- * @param minFacing cosine of the half-cone angle (0.35 ≈ 70° half-angle)
+ * @param o        ray origin (the hunter's eye)
+ * @param dir      aim direction (need not be normalised)
+ * @param range    max reach in metres
+ * @param occluders walls that block the swing (can't hit through geometry)
+ * @param minFacing cosine of the half-cone angle (0.5 ≈ 60° half-angle)
  */
 export function selectMeleeTarget(
   o: { x: number; y: number; z: number },
   dir: { x: number; y: number; z: number },
   targets: MeleeTarget[],
   range: number,
-  minFacing = 0.35,
+  occluders: Occluder[] = [],
+  minFacing = 0.5,
 ): MeleeHit | null {
   const dl = Math.hypot(dir.x, dir.y, dir.z) || 1;
   const dx = dir.x / dl;
@@ -48,6 +54,11 @@ export function selectMeleeTarget(
     if (dist > range + t.radius) continue;
     const facing = dist > 0.001 ? (vx * dx + vy * dy + vz * dz) / dist : 1;
     if (facing < minFacing) continue;
+    // A wall between the hunter and the target blocks the swing.
+    if (occluders.length && dist > 0.001) {
+      const occT = firstOccluderDistance(o, { x: vx / dist, y: vy / dist, z: vz / dist }, occluders, dist);
+      if (occT < dist - 0.05) continue;
+    }
     if (!best || dist < best.dist) best = { kind: t.kind, id: t.id, dist };
   }
   return best;

@@ -43,6 +43,22 @@ export interface MapBounds {
   maxZ: number;
 }
 
+/**
+ * A solid, sight-blocking box in world space (axis-aligned). The SERVER uses
+ * these to occlude shots and melee — a bullet/axe can't pass through a wall,
+ * the house, a hedge, a car, etc. They must mirror the collidable meshes the
+ * client builds in `mapBuilder`. (The disguise furniture in `props[]` already
+ * self-occludes via the hitscan, so only structural geometry is listed here.)
+ */
+export interface Occluder {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
+}
+
 export interface MapDefinition {
   id: string;
   displayName: string;
@@ -56,6 +72,13 @@ export interface MapDefinition {
   hunterSpawns: SpawnPoint[];
   propSpawns: SpawnPoint[];
   props: PropSpawn[];
+  /** Solid structures that block line-of-sight for shots + melee. */
+  occluders: Occluder[];
+}
+
+/** Build an Occluder from footprint centre (cx,cz), width W (x), depth D (z), height H. */
+function occ(cx: number, cz: number, W: number, D: number, H: number): Occluder {
+  return { minX: cx - W / 2, maxX: cx + W / 2, minY: 0, maxY: H, minZ: cz - D / 2, maxZ: cz + D / 2 };
 }
 
 /** Registry of prop models keyed by `modelKey`. */
@@ -156,6 +179,13 @@ export const DEPOT_7: MapDefinition = {
     { id: "p14", modelKey: "barrel", x: 2, y: 0, z: 15, ry: 0 },
     { id: "p15", modelKey: "pallet_stack", x: -3, y: 0, z: 0, ry: 0.5 },
     { id: "p16", modelKey: "crate_small", x: 6, y: 0, z: -12, ry: 0 },
+  ],
+  // Perimeter walls (crates self-occlude as furniture via the hitscan).
+  occluders: [
+    occ(0, -17.5, 34, 0.5, 6),
+    occ(0, 17.5, 34, 0.5, 6),
+    occ(-17.5, 0, 0.5, 34, 6),
+    occ(17.5, 0, 0.5, 34, 6),
   ],
 };
 
@@ -322,6 +352,36 @@ export const BACKYARD: MapDefinition = {
     { id: "b94", modelKey: "trash_can", x: -42, y: 0, z: -14, ry: 0 },
     { id: "b95", modelKey: "flower_pot", x: -8, y: 0, z: 20, ry: 0 },
     { id: "b96", modelKey: "bush", x: 41, y: 0, z: -12, ry: 0 },
+  ],
+  // Structural sight-blockers (mirror the collidable meshes in mapBuilder).
+  occluders: [
+    // Perimeter fence (pushed out by half its thickness; inner faces on bounds).
+    occ(0, -44.3, 92.6, 0.6, 1.9), // south
+    occ(0, 30.3, 92.6, 0.6, 1.9), // north
+    occ(-46.3, -7, 0.6, 74.6, 1.9), // west
+    occ(46.3, -7, 0.6, 74.6, 1.9), // east
+    // Buildings.
+    occ(0, 29.5, 40, 7, 6.5), // house
+    occ(-30, -28, 5, 4.5, 2.8), // shed
+    // Cars in the driveway.
+    occ(-14, -38, 4.2, 1.9, 2.0),
+    occ(14, -38, 4.2, 1.9, 2.0),
+    // Tree trunks.
+    occ(10, 12, 0.8, 0.8, 3), occ(-10, 12, 0.8, 0.8, 3), occ(0, -14, 0.8, 0.8, 3),
+    occ(-34, 20, 0.8, 0.8, 3), occ(34, 26, 0.8, 0.8, 3), occ(13, -22, 0.8, 0.8, 3),
+    // Hedges (chest/head-high cover, H=1.7).
+    occ(-4, -20, 10, 0.9, 1.7),
+    occ(1, -24, 0.9, 8, 1.7),
+    occ(-16, -6, 0.9, 10, 1.7),
+    occ(-20, -11, 9, 0.9, 1.7),
+    occ(14, -3, 0.9, 10, 1.7),
+    occ(18, 2, 9, 0.9, 1.7),
+    occ(0, 15, 10, 0.9, 1.7),
+    occ(-41, -8, 0.9, 14, 1.7),
+    occ(41, -6, 0.9, 14, 1.7),
+    // Low brick garden walls (H=0.9 — taller props peek over them).
+    occ(-14, 20, 11, 0.6, 0.9),
+    occ(24, -33, 8, 0.6, 0.9),
   ],
 };
 

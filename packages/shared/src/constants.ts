@@ -55,7 +55,7 @@ export const DECOY_AMMO_REWARD = 5;
 export const WRONG_SHOT_SELF_DAMAGE = 0;
 
 /** Melee (pistol-whip) — the fallback attack when a hunter is out of ammo. */
-export const MELEE_RANGE = 3.6; // metres — short reach (forgiving forward cone)
+export const MELEE_RANGE = 2.5; // metres — genuinely close reach (forward cone)
 export const MELEE_DAMAGE = 55; // two swings down a full-health prop
 export const MELEE_COOLDOWN_MS = 600; // min gap between swings
 

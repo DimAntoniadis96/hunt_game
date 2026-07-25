@@ -377,7 +377,7 @@ export class GameRoom extends Room<GameState> {
       if (model) propTargets.push({ id: `decoy:${dd.id}`, x: dd.x, z: dd.z, baseY: dd.y, radius: model.radius, height: model.height });
     });
 
-    const res = resolveShot({ ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz }, playerTargets, propTargets, WEAPON_RANGE);
+    const res = resolveShot({ ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz }, playerTargets, propTargets, WEAPON_RANGE, map.occluders);
 
     if (res.kind === "hit" && res.targetId) {
       const victim = this.state.players.get(res.targetId);
@@ -443,7 +443,8 @@ export class GameRoom extends Room<GameState> {
       targets.push({ kind: "decoy", id: dd.id, x: dd.x, y: dd.y + h / 2, z: dd.z, radius: r });
     });
 
-    const hit = selectMeleeTarget({ x: p.ox, y: p.oy, z: p.oz }, { x: p.dx, y: p.dy, z: p.dz }, targets, MELEE_RANGE);
+    const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
+    const hit = selectMeleeTarget({ x: p.ox, y: p.oy, z: p.oz }, { x: p.dx, y: p.dy, z: p.dz }, targets, MELEE_RANGE, map.occluders);
     if (hit?.kind === "player") {
       const victim = this.state.players.get(hit.id);
       if (victim) this.applyHit(player, client, victim, MELEE_DAMAGE, true);

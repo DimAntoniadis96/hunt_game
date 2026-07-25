@@ -4,6 +4,8 @@
  * state and calls `resolveShot`; it never trusts the client to decide a hit.
  */
 
+import type { Occluder } from "@mimic/shared";
+
 export interface ShotRay {
   ox: number;
   oy: number;
@@ -92,6 +94,64 @@ function normalize(dx: number, dy: number, dz: number) {
 }
 
 /**
+ * Ray vs axis-aligned box (slab method). `dir` must be unit length. Returns the
+ * nearest ENTRY distance t within (0, maxT], or null if the ray misses the box
+ * (or only touches it behind the origin). If the origin is inside the box, 0 is
+ * returned (immediately blocked).
+ */
+export function rayBoxEntry(
+  o: { x: number; y: number; z: number },
+  dir: { x: number; y: number; z: number },
+  box: Occluder,
+  maxT: number,
+): number | null {
+  let tmin = -Infinity;
+  let tmax = Infinity;
+  const axes: Array<[number, number, number, number]> = [
+    [o.x, dir.x, box.minX, box.maxX],
+    [o.y, dir.y, box.minY, box.maxY],
+    [o.z, dir.z, box.minZ, box.maxZ],
+  ];
+  for (const [oo, dd, lo, hi] of axes) {
+    if (Math.abs(dd) < 1e-9) {
+      if (oo < lo || oo > hi) return null; // parallel to slab and outside it
+    } else {
+      let t1 = (lo - oo) / dd;
+      let t2 = (hi - oo) / dd;
+      if (t1 > t2) {
+        const tmp = t1;
+        t1 = t2;
+        t2 = tmp;
+      }
+      if (t1 > tmin) tmin = t1;
+      if (t2 < tmax) tmax = t2;
+      if (tmin > tmax) return null;
+    }
+  }
+  if (tmax < 0) return null; // box entirely behind the origin
+  const tEntry = tmin > 0 ? tmin : 0; // origin inside -> 0
+  return tEntry <= maxT ? tEntry : null;
+}
+
+/**
+ * Nearest distance at which any occluder blocks the ray, or Infinity if clear.
+ * A tiny floor ignores occluders essentially at the origin (touching a wall).
+ */
+export function firstOccluderDistance(
+  o: { x: number; y: number; z: number },
+  dir: { x: number; y: number; z: number },
+  occluders: Occluder[],
+  maxT: number,
+): number {
+  let best = Infinity;
+  for (const b of occluders) {
+    const t = rayBoxEntry(o, dir, b, maxT);
+    if (t !== null && t > 0.02 && t < best) best = t;
+  }
+  return best;
+}
+
+/**
  * Resolve a shot against disguised players and static furniture.
  * - Nearest player hit within range and not occluded by nearer furniture -> "hit".
  * - Otherwise nearest furniture within range -> "wrong" (penalty for shooting props).
@@ -102,8 +162,10 @@ export function resolveShot(
   players: CylinderTarget[],
   props: CylinderTarget[],
   range: number,
+  occluders: Occluder[] = [],
 ): ShotResolution {
   const dir = normalize(ray.dx, ray.dy, ray.dz);
+  const o = { x: ray.ox, y: ray.oy, z: ray.oz };
 
   let bestPlayerT = Infinity;
   let victimId: string | undefined;
@@ -125,11 +187,14 @@ export function resolveShot(
     }
   }
 
-  if (victimId && bestPlayerT <= bestPropT) {
+  // A wall/house/hedge in the way stops the bullet before it reaches anything.
+  const occT = firstOccluderDistance(o, dir, occluders, range);
+
+  if (victimId && bestPlayerT <= bestPropT && bestPlayerT < occT) {
     return { kind: "hit", targetId: victimId, t: bestPlayerT, hx: ray.ox + dir.x * bestPlayerT, hy: ray.oy + dir.y * bestPlayerT, hz: ray.oz + dir.z * bestPlayerT };
   }
-  if (isFinite(bestPropT) && bestPropT <= range) {
+  if (isFinite(bestPropT) && bestPropT <= range && bestPropT < occT) {
     return { kind: "wrong", targetId: propId, t: bestPropT, hx: ray.ox + dir.x * bestPropT, hy: ray.oy + dir.y * bestPropT, hz: ray.oz + dir.z * bestPropT };
   }
-  return { kind: "miss" };
+  return { kind: "miss" }; // clear air, or the shot was blocked by a wall
 }
