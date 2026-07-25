@@ -375,7 +375,8 @@ export class GameScene {
         return;
       }
 
-      const desiredKey = p.alive ? (p.propModel ? p.propModel : "hunter") : "dead";
+      const isHunter = p.team === Team.Hunters;
+      const desiredKey = p.alive ? (p.propModel ? p.propModel : isHunter ? "hunter" : "person") : "dead";
       let v = this.visuals.get(id);
       if (!v || v.key !== desiredKey) {
         v?.node.dispose();
@@ -385,11 +386,12 @@ export class GameScene {
         }
         const node = p.propModel
           ? createPropVisual(this.scene, p.propModel, `p_${id}`)
-          : createHunterVisual(this.scene, `p_${id}`);
+          : createHunterVisual(this.scene, `p_${id}`, isHunter ? "#ff7043" : "#8e7cc3", isHunter);
         // Make OTHER players solid so a hunter bumps into / stands on a hiding
-        // prop just like a real object (no more sinking through it). The local
-        // player's own body is never collidable (would trap its own collider).
-        node.getChildMeshes().forEach((m) => (m.checkCollisions = true));
+        // prop just like a real object. A disguised prop is fully solid; an
+        // undisguised character only blocks via its torso (so we don't create
+        // dozens of tiny colliders for eyes/hat/weapons).
+        node.getChildMeshes().forEach((m) => (m.checkCollisions = p.propModel ? true : m.name.includes("_torso")));
         v = { node, key: desiredKey };
         this.visuals.set(id, v);
       }

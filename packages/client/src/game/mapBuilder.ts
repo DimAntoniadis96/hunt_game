@@ -606,7 +606,7 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
  * round head with googly eyes and a grin, a chubby team-coloured body, stubby
  * arms and legs, and a spinning-look propeller beanie. Faces +Z (its forward).
  */
-export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043"): TransformNode {
+export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043", armed = false): TransformNode {
   const root = new TransformNode(name, scene);
   const skin = "#f4cfa4";
   const dark = "#2b2f38";
@@ -629,12 +629,12 @@ export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043"):
   const torso = add(MeshBuilder.CreateCapsule(name + "_torso", { radius: 0.36, height: 0.95 }, scene), hex, 0.14);
   torso.position.y = 0.92;
   torso.scaling.set(1, 1, 0.9);
-  // Arms + hands.
-  for (const [dx, rz] of [[-0.42, 0.55], [0.42, -0.55]] as Array<[number, number]>) {
-    const arm = add(MeshBuilder.CreateCapsule(name + "_arm", { radius: 0.1, height: 0.5 }, scene), hex, 0.12);
-    arm.position.set(dx, 1.0, 0.04);
-    arm.rotation.z = rz;
-    add(MeshBuilder.CreateSphere(name + "_hand", { diameter: 0.18, segments: 8 }, scene), skin, 0.08).position.set(dx * 1.18, 0.74, 0.06);
+  // Arms hang down at the sides (only a slight outward angle) with little hands.
+  for (const side of [-1, 1] as const) {
+    const arm = add(MeshBuilder.CreateCapsule(name + "_arm", { radius: 0.1, height: 0.52 }, scene), hex, 0.12);
+    arm.position.set(side * 0.38, 0.9, 0.05);
+    arm.rotation.z = side * 0.14;
+    add(MeshBuilder.CreateSphere(name + "_hand", { diameter: 0.17, segments: 8 }, scene), skin, 0.08).position.set(side * 0.44, 0.64, 0.08);
   }
   // Big round head.
   add(MeshBuilder.CreateSphere(name + "_head", { diameter: 0.62, segments: 14 }, scene), skin, 0.1).position.y = 1.66;
@@ -660,6 +660,23 @@ export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043"):
     blade.rotation.y = ry;
   }
   add(MeshBuilder.CreateSphere(name + "_hub", { diameter: 0.09, segments: 8 }, scene), "#f1c40f", 0.2).position.y = 2.14;
+
+  // Hunters visibly carry their gun (right hand) + axe (left hand) so OTHER
+  // players can tell the seeker apart from an undisguised prop.
+  if (armed) {
+    // Teal blaster pointing forward (+Z).
+    add(MeshBuilder.CreateBox(name + "_gun", { width: 0.13, height: 0.15, depth: 0.32 }, scene), "#22b58e", 0.18).position.set(0.46, 0.7, 0.22);
+    const funnel = add(MeshBuilder.CreateCylinder(name + "_gunf", { diameterTop: 0.15, diameterBottom: 0.08, height: 0.14, tessellation: 12 }, scene), "#1c2530", 0.05);
+    funnel.rotation.x = Math.PI / 2;
+    funnel.position.set(0.46, 0.72, 0.42);
+    add(MeshBuilder.CreateSphere(name + "_gunt", { diameter: 0.09, segments: 8 }, scene), "#ff7a3c", 0.85).position.set(0.46, 0.72, 0.5);
+    // Chunky axe, head up.
+    add(MeshBuilder.CreateCylinder(name + "_axeh", { diameter: 0.05, height: 0.5, tessellation: 8 }, scene), "#5b3b22", 0.05).position.set(-0.48, 0.64, 0.14);
+    add(MeshBuilder.CreateBox(name + "_axehd", { width: 0.06, height: 0.18, depth: 0.2 }, scene), "#8a9199", 0.14).position.set(-0.48, 0.88, 0.2);
+    const blade = add(MeshBuilder.CreateCylinder(name + "_axebl", { diameterTop: 0, diameterBottom: 0.22, height: 0.14, tessellation: 3 }, scene), "#8a9199", 0.14);
+    blade.rotation.x = Math.PI / 2;
+    blade.position.set(-0.48, 0.88, 0.32);
+  }
   return root;
 }
 
