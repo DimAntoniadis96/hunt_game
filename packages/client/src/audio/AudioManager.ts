@@ -29,6 +29,7 @@ export type Sfx =
   | "step"
   | "axe1"
   | "axe2"
+  | "axe_miss"
   | "death1"
   | "death2"
   | "damage1"
@@ -63,6 +64,7 @@ const SAMPLE_NAMES: Sfx[] = [
   "step",
   "axe1",
   "axe2",
+  "axe_miss",
   "death1",
   "death2",
   "damage1",
@@ -457,6 +459,11 @@ export class AudioManager {
         // Fallback if the real axe hit samples aren't present: a chunky thunk.
         this.noise(0.08, { gain: 0.6, type: "lowpass", cutoff: 900 });
         this.tone(190, 0.12, { type: "sawtooth", slideTo: 70, gain: 0.6, cutoff: 800 });
+        break;
+      case "axe_miss":
+        // Fallback whiff: a short airy noise swoosh, no low-end impact.
+        this.noise(0.13, { gain: 0.32, type: "bandpass", cutoff: 1600 });
+        this.tone(900, 0.1, { type: "sine", slideTo: 400, gain: 0.14, cutoff: 2600 });
         break;
       case "damage1":
       case "damage2":

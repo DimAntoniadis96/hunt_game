@@ -28,10 +28,18 @@ Per-hider whistles (5 variants — each hider is randomly assigned one per round
 whistle1  whistle2  whistle3  whistle4  whistle5   (.ogg / .mp3 / .wav)
 ```
 
-Axe hit (2 variants — one is picked at random on each axe hit):
+Axe hit (2 variants — one is picked at random on each axe hit, including when the
+axe smashes a decoy clone, so a clone sounds just like a real hider):
 
 ```
 axe1  axe2
+```
+
+Axe miss — played when an axe swing connects with nothing (empty air, no prop and
+no clone):
+
+```
+axe_miss
 ```
 
 Death & damage stings (one of each pair is picked at random per event):

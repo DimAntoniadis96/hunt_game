@@ -675,8 +675,13 @@ export class GameScene {
         this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "hit");
       } else if (m.decoy) {
         // Destroyed a decoy clone → ammo reward. Positive cue, no penalty.
+        // An axe hitting a clone sounds exactly like hitting a real hider, so the
+        // seeker can't tell decoy from prop by ear; gun kills keep the pop cue.
         this.hud.setCrosshairHit(true, false);
-        this.audio.play("transform");
+        this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "transform");
+      } else if (m.melee) {
+        // Axe swung through empty air (no prop, no clone) — a whiffing miss.
+        this.audio.play("axe_miss");
       } else if (m.wrong) {
         this.hud.setCrosshairHit(false, true); // red crosshair flash is the only cue now
         this.audio.play("hit");
