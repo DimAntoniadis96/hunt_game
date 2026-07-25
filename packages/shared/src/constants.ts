@@ -67,6 +67,15 @@ export const SCORE_WRONG_SHOT_PENALTY = 25;
 /** Taunt: props are periodically forced/allowed to emit a locator sound. */
 export const TAUNT_COOLDOWN_MS = 12000;
 
+/**
+ * Auto-whistle: during the hunt, every alive prop automatically emits a locator
+ * whistle on this cadence (COD-style), so seekers can triangulate them. The
+ * interval shortens in the final seconds to force a finish.
+ */
+export const WHISTLE_INTERVAL_MS = 32000; // base gap between a hider's whistles
+export const WHISTLE_FAST_MS = 15000; // used when little hunt time remains
+export const WHISTLE_FAST_UNDER_SECONDS = 30;
+
 /** Cooldown between disguise changes (ms). Stops instant model-flicker to dodge. */
 export const TRANSFORM_COOLDOWN_MS = 5000;
 

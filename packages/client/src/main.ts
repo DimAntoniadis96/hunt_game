@@ -44,6 +44,9 @@ if (!hasWebGL()) {
 
 screens.onConnect = async (mode: ConnectMode) => {
   joinedPrivate = mode.kind === "create";
+  // The connect button click is a user gesture — warm up audio here so the
+  // lobby ("preload") music is allowed to start while players wait to ready up.
+  audio.unlock();
   screens.showConnecting();
   try {
     net = new NetworkClient(SERVER_URL);
@@ -91,7 +94,32 @@ function onState(state: any) {
     exitGame();
     screens.showLobby(net?.roomCode ?? "", true);
   }
+
+  // Drive the looping background music off the round phase. setMusic() is a
+  // no-op when the track is already current, so calling it every patch is fine.
+  if (phase !== currentPhase) updateMusic(phase);
+
   currentPhase = phase;
+}
+
+/** Map a round phase to its looping background track. */
+function updateMusic(phase: Phase) {
+  switch (phase) {
+    case Phase.Lobby:
+    case Phase.Countdown:
+      audio.setMusic("music_lobby"); // waiting on queue for everyone to ready up
+      break;
+    case Phase.Prep:
+      audio.setMusic("music_hide"); // props hiding, hunters frozen
+      break;
+    case Phase.Hunt:
+      audio.setMusic("music_hunt"); // hunters released, main game
+      break;
+    case Phase.RoundEnd:
+    case Phase.MatchEnd:
+      audio.setMusic(null); // scoreboard / transition — silence
+      break;
+  }
 }
 
 function enterGame() {
@@ -122,6 +150,7 @@ function exitGame() {
 }
 
 async function teardown(message: string) {
+  audio.stopMusic();
   exitGame();
   try {
     await net?.leave();

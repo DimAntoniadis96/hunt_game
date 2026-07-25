@@ -39,6 +39,9 @@ import {
   ServerMessage,
   TAUNT_COOLDOWN_MS,
   TRANSFORM_COOLDOWN_MS,
+  WHISTLE_INTERVAL_MS,
+  WHISTLE_FAST_MS,
+  WHISTLE_FAST_UNDER_SECONDS,
   Team,
   WEAPON_DAMAGE,
   WEAPON_FIRE_COOLDOWN_MS,
@@ -81,6 +84,8 @@ interface ClientMeta {
   lastDecoyAt: number;
   lastTransformAt: number;
   lastMeleeAt: number;
+  lastWhistleAt: number;
+  whistleSound: number; // which of the 5 whistle sounds this hider uses this round
   msgWindowStart: number;
   msgCount: number;
   disconnectedAt: number;
@@ -134,6 +139,8 @@ export class GameRoom extends Room<GameState> {
       lastDecoyAt: 0,
       lastTransformAt: 0,
       lastMeleeAt: 0,
+      lastWhistleAt: 0,
+      whistleSound: 1,
       msgWindowStart: Date.now(),
       msgCount: 0,
       disconnectedAt: 0,
@@ -508,6 +515,7 @@ export class GameRoom extends Room<GameState> {
     const now = Date.now();
     if (now - m.lastTauntAt < TAUNT_COOLDOWN_MS) return;
     m.lastTauntAt = now;
+    m.lastWhistleAt = now; // a manual taunt counts as this cycle's auto-whistle
     // Broadcast a rough locator (reveals approximate area, a fair drawback).
     this.broadcast(ServerMessage.RoundEvent, {
       phase: this.state.phase,
@@ -574,6 +582,8 @@ export class GameRoom extends Room<GameState> {
         this.checkRoundEnd();
         if (this.state.phase === Phase.Hunt && now >= this.state.phaseEndsAt) {
           this.endRound(RoundResult.PropsWin); // survivors win on timeout
+        } else if (this.state.phase === Phase.Hunt) {
+          this.tickWhistles(now);
         }
         break;
       case Phase.RoundEnd:
@@ -609,7 +619,35 @@ export class GameRoom extends Room<GameState> {
   private enterHunt() {
     this.state.phase = Phase.Hunt;
     this.state.phaseEndsAt = Date.now() + HUNT_SECONDS * 1000;
+    // Give each hider a distinct whistle sound (1-5) for the round, and stagger
+    // their first whistle so they don't all sound at once.
+    const props = [...this.state.players.values()].filter((p) => p.team === Team.Props && p.alive);
+    const sounds = [1, 2, 3, 4, 5];
+    for (let i = sounds.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sounds[i], sounds[j]] = [sounds[j], sounds[i]];
+    }
+    const now = Date.now();
+    props.forEach((p, i) => {
+      const m = this.meta.get(p.id);
+      if (!m) return;
+      m.whistleSound = sounds[i % sounds.length]; // ≤5 hiders → all unique
+      m.lastWhistleAt = now - Math.floor((WHISTLE_INTERVAL_MS * i) / Math.max(1, props.length));
+    });
     this.broadcastRound("Hunters released!");
+  }
+
+  /** Auto-whistle: every alive prop emits a positional locator on a cadence that
+   * quickens in the final seconds, so seekers can hunt them down. */
+  private tickWhistles(now: number) {
+    const interval = this.secondsLeft() <= WHISTLE_FAST_UNDER_SECONDS ? WHISTLE_FAST_MS : WHISTLE_INTERVAL_MS;
+    this.state.players.forEach((p) => {
+      if (p.team !== Team.Props || !p.alive) return;
+      const m = this.meta.get(p.id);
+      if (!m || now - m.lastWhistleAt < interval) return;
+      m.lastWhistleAt = now;
+      this.broadcast(ServerMessage.Whistle, { id: p.id, x: p.x, y: p.y, z: p.z, sound: m.whistleSound });
+    });
   }
 
   private endRound(result: RoundResult) {

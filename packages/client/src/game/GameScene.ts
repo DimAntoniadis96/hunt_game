@@ -52,6 +52,7 @@ export class GameScene {
 
   private visuals = new Map<string, Visual>();
   private decoyNodes = new Map<string, TransformNode>();
+  private stepAccum = new Map<string, number>(); // per-hunter footstep timers
   private sendAccum = 0;
   private prevPhase: Phase | null = null;
   private prevAlive = true;
@@ -338,6 +339,7 @@ export class GameScene {
 
     this.syncVisuals(state, dt, this.currentMode === "tp");
     this.syncDecoys(state);
+    if (phase === Phase.Hunt) this.updateFootsteps(state, moving, dt);
     this.updatePrompts(me, phase);
     this.hud.update(state, me, this.net.ping);
     this.scene.render();
@@ -427,6 +429,53 @@ export class GameScene {
         this.decoyNodes.delete(id);
       }
     }
+  }
+
+  /**
+   * Volume + stereo pan for a world-space sound relative to the listener. Volume
+   * is loud up close and fades to ZERO at `maxDist` (quadratic), so a far seeker
+   * barely hears a whistle and a close one hears it clearly. Pan is left/right by
+   * direction relative to where the listener is facing.
+   */
+  private spatialParams(px: number, py: number, pz: number, maxDist: number): { vol: number; pan: number } {
+    const cam = this.input.camera;
+    const dx = px - cam.position.x;
+    const dy = py - cam.position.y;
+    const dz = pz - cam.position.z;
+    const dist = Math.hypot(dx, dy, dz);
+    const t = Math.min(1, dist / maxDist);
+    const vol = (1 - t) * (1 - t);
+    const right = cam.getDirection(Vector3.Right());
+    const hlen = Math.hypot(dx, dz) || 1;
+    const pan = Math.max(-1, Math.min(1, (dx * right.x + dz * right.z) / hlen));
+    return { vol, pan };
+  }
+
+  /** Footsteps for moving hunters (own + nearby others), positional so props can
+   * hear a seeker approaching. */
+  private updateFootsteps(state: any, localMoving: boolean, dt: number) {
+    const STEP = 0.34; // seconds between footfalls
+    const MAX_DIST = 22; // metres — a step fades to silence at this range
+    state.players.forEach((p: PlayerView, id: string) => {
+      if (p.team !== Team.Hunters || !p.alive) {
+        this.stepAccum.delete(id);
+        return;
+      }
+      const isSelf = id === this.net.sessionId;
+      const movingNow = isSelf ? localMoving : p.moving;
+      if (!movingNow) {
+        this.stepAccum.set(id, STEP); // primed so the first step lands promptly
+        return;
+      }
+      let acc = (this.stepAccum.get(id) ?? STEP) + dt;
+      if (acc >= STEP) {
+        acc -= STEP;
+        const pos = isSelf ? this.input.getFeet() : { x: p.x, y: p.y, z: p.z };
+        const { vol, pan } = this.spatialParams(pos.x, pos.y, pos.z, MAX_DIST);
+        this.audio.playSpatial("step", Math.min(0.85, vol), pan);
+      }
+      this.stepAccum.set(id, acc);
+    });
   }
 
   private updatePrompts(me: PlayerView | undefined, phase: Phase) {
@@ -622,7 +671,8 @@ export class GameScene {
     room.onMessage(ServerMessage.ShotResult, (m: any) => {
       if (m.hit) {
         this.hud.setCrosshairHit(true, false);
-        this.audio.play("hit");
+        // Axe hits use one of two impact sounds at random; gun hits use "hit".
+        this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "hit");
       } else if (m.decoy) {
         // Destroyed a decoy clone → ammo reward. Positive cue, no penalty.
         this.hud.setCrosshairHit(true, false);
@@ -633,13 +683,19 @@ export class GameScene {
       }
     });
     room.onMessage(ServerMessage.Hit, () => {
-      this.audio.play("hit");
+      // Local player took damage from a seeker — random pain sting + red flash.
+      this.audio.playOneOf(["damage1", "damage2"]);
       document.body.animate([{ filter: "brightness(1.6) saturate(0.5)" }, { filter: "none" }], { duration: 180 });
     });
-    room.onMessage(ServerMessage.Eliminated, () => this.audio.play("eliminate"));
+    // The death sound is emitted once, globally, from the killfeed below (every
+    // kill in prop hunt is a hider dying), so the local-victim Eliminated event
+    // stays sound-free to avoid a doubled sting.
+    room.onMessage(ServerMessage.Eliminated, () => {
+      /* HUD/state handled elsewhere; death sound comes from Killfeed */
+    });
     room.onMessage(ServerMessage.Killfeed, (m: any) => {
       this.hud.killfeed(`${m.killerName} ▶ ${m.victimName}`);
-      this.audio.play("eliminate");
+      this.audio.playOneOf(["death1", "death2"]); // a hider died
     });
     room.onMessage(ServerMessage.TransformResult, (m: any) => {
       if (m.ok) {
@@ -653,6 +709,12 @@ export class GameScene {
         this.hud.banner(m.reason || "Can't disguise here", 1400);
         this.audio.play("ui");
       }
+    });
+    room.onMessage(ServerMessage.Whistle, (m: any) => {
+      // A prop's auto-whistle — play their assigned sound positionally so seekers
+      // can locate them (loud when close, fading to silence when far).
+      const { vol, pan } = this.spatialParams(m.x, m.y ?? 0, m.z, 46);
+      this.audio.playWhistle(m.sound ?? 1, vol, pan);
     });
     room.onMessage(ServerMessage.RoundEvent, (m: any) => {
       if (m.message === "taunt") {

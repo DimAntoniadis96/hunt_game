@@ -60,6 +60,7 @@ export const ServerMessage = {
   Killfeed: "killfeed",
   TransformResult: "transform_result",
   RoundEvent: "round_event", // countdown ticks, phase changes, taunts
+  Whistle: "whistle", // a prop's auto-whistle locator (with world position)
   Error: "error",
 } as const;
 export type ServerMessageName =
@@ -144,6 +145,16 @@ export interface RoundEventPayload {
   secondsLeft: number;
   result?: RoundResult;
   message?: string;
+}
+
+/** A prop's locator whistle at a world position (clients play it spatially). */
+export interface WhistlePayload {
+  id: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Which of the 5 whistle sounds this hider was assigned this round (1-5). */
+  sound: number;
 }
 
 // ---- State read-shapes (mirror the server schema) --------------------------
