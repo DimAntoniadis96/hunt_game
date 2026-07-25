@@ -167,9 +167,9 @@ export class GameScene {
 
     const root = new TransformNode("axevm", this.scene);
     root.parent = this.input.camera; // rides with the view, left side
-    root.position.set(-0.42, -0.42, 0.74);
+    root.position.set(-0.5, -0.52, 0.82);
     root.rotation.set(-0.25, 0, 0.5); // held up-and-inward at rest
-    root.scaling.setAll(0.72); // keep it framing the corner, not dominating the view
+    root.scaling.setAll(0.98); // a big, chunky axe
 
     const handle = MeshBuilder.CreateCylinder("axeHandle", { diameter: 0.05, height: 0.62, tessellation: 8 }, this.scene);
     handle.material = wood;
@@ -191,22 +191,24 @@ export class GameScene {
     root.setEnabled(false);
   }
 
-  /** Rest pose + a chopping swing arc driven by the last F melee. */
+  /** Rest pose + an overhead chop that sweeps down through screen centre. */
   private animateAxe() {
     if (!this.axeRoot) return;
     const now = performance.now();
-    let rx = -0.25;
-    let rz = 0.5;
-    let z = 0.74;
-    const st = (now - this.lastMeleeTime) / 300; // ~300ms swing
-    if (st >= 0 && st < 1) {
-      const s = Math.sin(st * Math.PI); // 0 -> 1 -> 0 (raise into a downward chop)
-      rx = -0.25 + 1.7 * s; // blade swings down and across
-      rz = 0.5 - 0.35 * s;
-      z = 0.74 + 0.28 * s; // reach forward
+    // Pose keyframes: [x, y, z, rotX, rotZ].
+    const rest = [-0.5, -0.52, 0.82, -0.25, 0.5];
+    const wind = [-0.58, -0.26, 0.7, -1.0, 0.72]; // raised up-left, blade back
+    const strike = [-0.1, -0.5, 1.06, 1.4, 0.02]; // down through the crosshair, reaching forward
+    let pose = rest;
+    const p = (now - this.lastMeleeTime) / 360; // ~360ms whole swing
+    if (p >= 0 && p < 1) {
+      const lerp = (a: number[], b: number[], t: number) => a.map((v, i) => v + (b[i] - v) * t);
+      if (p < 0.26) pose = lerp(rest, wind, p / 0.26); // quick wind-up
+      else if (p < 0.54) pose = lerp(wind, strike, (p - 0.26) / 0.28); // fast chop down
+      else pose = lerp(strike, rest, (p - 0.54) / 0.46); // recover
     }
-    this.axeRoot.rotation.set(rx, 0, rz);
-    this.axeRoot.position.set(-0.42, -0.42, z);
+    this.axeRoot.position.set(pose[0], pose[1], pose[2]);
+    this.axeRoot.rotation.set(pose[3], 0, pose[4]);
   }
 
   /** Animates the first-person gun: recoil on fire + a visible reload motion. */

@@ -57,6 +57,7 @@ import {
 import { Decoy, GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
+import { selectMeleeTarget, type MeleeTarget } from "./melee.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
 const COPY_RANGE = 6.0;
@@ -407,7 +408,9 @@ export class GameRoom extends Room<GameState> {
     client.send(ServerMessage.ShotResult, { hit: false, wrong: false });
   }
 
-  /** Short-range melee — the fallback attack when a hunter has no ammo left. */
+  /** Axe swing (F). A forgiving forward-cone at the crosshair centre so the swing
+   * connects with whatever the hunter is facing — a prop OR a decoy clone — at
+   * short range. Not a thin ray, so it doesn't feel like it "misses to the side". */
   private handleMelee(client: Client, p: ShootPayload) {
     const player = this.state.players.get(client.sessionId);
     const m = this.meta.get(client.sessionId);
@@ -423,16 +426,35 @@ export class GameRoom extends Room<GameState> {
     if (now - m.lastMeleeAt < MELEE_COOLDOWN_MS) return;
     m.lastMeleeAt = now;
 
-    // Melee only connects with disguised/undisguised PROPS, at very short range.
-    const res = resolveShot(
-      { ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz },
-      this.propPlayerTargets(player),
-      [],
-      MELEE_RANGE,
-    );
-    if (res.kind === "hit" && res.targetId) {
-      const victim = this.state.players.get(res.targetId);
-      if (victim) this.applyHit(player, client, victim, MELEE_DAMAGE, true, res.hx, res.hy, res.hz);
+    // Collect every candidate (prop players + decoys) and let the pure selector
+    // pick the nearest one inside the forward cone at the crosshair centre.
+    const targets: MeleeTarget[] = [];
+    this.state.players.forEach((o) => {
+      if (o === player || !o.alive || o.team !== Team.Props) return;
+      const model = PROP_MODELS[o.propModel];
+      const h = model ? model.height : PLAYER_HIT_HEIGHT;
+      const r = model ? model.radius : PLAYER_RADIUS;
+      targets.push({ kind: "player", id: o.id, x: o.x, y: o.y + h / 2, z: o.z, radius: r });
+    });
+    this.state.decoys.forEach((dd) => {
+      const model = PROP_MODELS[dd.modelKey];
+      const h = model ? model.height : 1;
+      const r = model ? model.radius : 0.5;
+      targets.push({ kind: "decoy", id: dd.id, x: dd.x, y: dd.y + h / 2, z: dd.z, radius: r });
+    });
+
+    const hit = selectMeleeTarget({ x: p.ox, y: p.oy, z: p.oz }, { x: p.dx, y: p.dy, z: p.dz }, targets, MELEE_RANGE);
+    if (hit?.kind === "player") {
+      const victim = this.state.players.get(hit.id);
+      if (victim) this.applyHit(player, client, victim, MELEE_DAMAGE, true);
+      return;
+    }
+    if (hit?.kind === "decoy") {
+      // Axe smashes the clone — destroy it and reward ammo, same as shooting one.
+      const idx = this.state.decoys.findIndex((dd) => dd.id === hit.id);
+      if (idx >= 0) this.state.decoys.splice(idx, 1);
+      player.reserve += DECOY_AMMO_REWARD;
+      client.send(ServerMessage.ShotResult, { hit: false, wrong: false, decoy: true, melee: true });
       return;
     }
     client.send(ServerMessage.ShotResult, { hit: false, wrong: false, melee: true });
