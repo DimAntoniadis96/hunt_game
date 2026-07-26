@@ -12,7 +12,7 @@ import {
   HemisphericLight,
   DirectionalLight,
 } from "@babylonjs/core";
-import { MapDefinition, PROP_MODELS } from "@mimic/shared";
+import { BACKYARD_HEDGES, PROP_MODELS, type MapDefinition, type Occluder } from "@mimic/shared";
 
 const matCache = new Map<string, StandardMaterial>();
 
@@ -394,27 +394,21 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   // Chest/head-high hedges break the hunters' line of sight and give a spotted
   // prop something to dodge behind and lose their pursuer. Layered as a lighter
   // canopy box on a darker trunk box so they read as foliage, not walls.
-  const hedge = (x: number, z: number, W: number, D: number) => {
-    const H = 1.7;
+  const hedge = (b: Occluder) => {
+    const W = b.maxX - b.minX;
+    const H = b.maxY - b.minY;
+    const D = b.maxZ - b.minZ;
+    const x = (b.minX + b.maxX) / 2;
+    const y = b.minY + H / 2;
+    const z = (b.minZ + b.maxZ) / 2;
     // Foliage texture (not the structural grain) so hedges read as leafy.
-    box("hedge", W, H, D, x, H / 2, z, "#3f7d34", true, 0.09).material = texMat(scene, "#3f7d34", "grass", 2.5, 2.5, 0.09);
-    // Lighter top layer (decorative, non-colliding) so it looks bushy.
-    box("hedgeTop", W + 0.25, 0.5, D + 0.25, x, H + 0.12, z, "#4f9e3a", false, 0.11).material = texMat(scene, "#4f9e3a", "grass", 2.5, 2.5, 0.11);
+    box("hedge", W, H, D, x, y, z, "#3f7d34", true, 0.09).material = texMat(scene, "#3f7d34", "grass", 2.5, 2.5, 0.09);
+    // Lighter top layer (decorative, non-colliding) sits on top instead of
+    // intersecting the base or adjacent L-corner boxes.
+    const topH = 0.42;
+    box("hedgeTop", W, topH, D, x, b.maxY + topH / 2, z, "#4f9e3a", false, 0.11).material = texMat(scene, "#4f9e3a", "grass", 2.5, 2.5, 0.11);
   };
-  // South-central L (near the hunters' approach — first cover off the gate).
-  hedge(-4, -20, 10, 0.9);
-  hedge(1, -24, 0.9, 8);
-  // Mid-west cover cluster.
-  hedge(-16, -6, 0.9, 10);
-  hedge(-20, -11, 9, 0.9);
-  // Mid-east cover cluster.
-  hedge(14, -3, 0.9, 10);
-  hedge(18, 2, 9, 0.9);
-  // Center-north screen.
-  hedge(0, 15, 10, 0.9);
-  // Long runs down the new east/west margins — chase lanes with cover.
-  hedge(-41, -8, 0.9, 14);
-  hedge(41, -6, 0.9, 14);
+  BACKYARD_HEDGES.forEach(hedge);
   // A low brick garden wall as partial (crouch-height) cover near the patio.
   const lowWall = (x: number, z: number, W: number, D: number) => {
     box("gardenWall", W, 0.9, D, x, 0.45, z, "#b07a55", true, 0.07);

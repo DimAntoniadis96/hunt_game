@@ -189,6 +189,25 @@ export const DEPOT_7: MapDefinition = {
   ],
 };
 
+/** Backyard hedge cover as non-overlapping axis-aligned boxes. L-corners touch
+ * at their edges instead of interpenetrating, which avoids flickering faces. */
+export const BACKYARD_HEDGES: Occluder[] = [
+  // South-central L.
+  occ(-4, -20, 10, 0.9, 1.7),
+  occ(1, -24.225, 0.9, 7.55, 1.7),
+  // Mid-west cover cluster.
+  occ(-16, -5.775, 0.9, 9.55, 1.7),
+  occ(-20, -11, 9, 0.9, 1.7),
+  // Mid-east cover cluster.
+  occ(14, -3.225, 0.9, 9.55, 1.7),
+  occ(18, 2, 9, 0.9, 1.7),
+  // Center-north screen.
+  occ(0, 15, 10, 0.9, 1.7),
+  // Long runs down the east/west margins.
+  occ(-41, -8, 0.9, 14, 1.7),
+  occ(41, -6, 0.9, 14, 1.7),
+];
+
 /**
  * Second map: an original suburban backyard. Grass, a fence, a house, a shed and
  * trees, with plenty of natural props to hide as.
@@ -370,15 +389,7 @@ export const BACKYARD: MapDefinition = {
     occ(10, 12, 0.8, 0.8, 3), occ(-10, 12, 0.8, 0.8, 3), occ(0, -14, 0.8, 0.8, 3),
     occ(-34, 20, 0.8, 0.8, 3), occ(34, 26, 0.8, 0.8, 3), occ(13, -22, 0.8, 0.8, 3),
     // Hedges (chest/head-high cover, H=1.7).
-    occ(-4, -20, 10, 0.9, 1.7),
-    occ(1, -24, 0.9, 8, 1.7),
-    occ(-16, -6, 0.9, 10, 1.7),
-    occ(-20, -11, 9, 0.9, 1.7),
-    occ(14, -3, 0.9, 10, 1.7),
-    occ(18, 2, 9, 0.9, 1.7),
-    occ(0, 15, 10, 0.9, 1.7),
-    occ(-41, -8, 0.9, 14, 1.7),
-    occ(41, -6, 0.9, 14, 1.7),
+    ...BACKYARD_HEDGES,
     // Low brick garden walls (H=0.9 — taller props peek over them).
     occ(-14, 20, 11, 0.6, 0.9),
     occ(24, -33, 8, 0.6, 0.9),
