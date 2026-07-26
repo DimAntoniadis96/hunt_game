@@ -394,6 +394,117 @@ button:disabled {
   opacity: 1;
 }
 
+/* ---- Final-seconds countdown (shared: last 5s of Prep, last 3s of Hunt) ---- *
+ * A gamified but tasteful countdown: a gradient number with an accent glow, an
+ * expanding ring that fires each second, and a soft accent vignette at the
+ * screen edge. Two colour tones — warm amber to "hide", red for the round-end
+ * "time" timer. Accent colours are driven by CSS vars per tone. */
+.finale {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 6;
+  /* defaults (overridden per tone) */
+  --fin-edge: #ff5470;
+  --fin-glow: rgba(255, 80, 96, 0.75);
+  --fin-vig: rgba(255, 60, 70, 0.22);
+  --fin-lab: #ffd2d8;
+}
+.finale.tone-hide {
+  --fin-edge: #ffc23d;
+  --fin-glow: rgba(255, 190, 60, 0.7);
+  --fin-vig: rgba(255, 170, 50, 0.2);
+  --fin-lab: #ffe6a6;
+}
+.finale.tone-hunt {
+  --fin-edge: #ff5470;
+  --fin-glow: rgba(255, 80, 96, 0.78);
+  --fin-vig: rgba(255, 55, 66, 0.24);
+  --fin-lab: #ffd2d8;
+}
+.finale.show {
+  opacity: 1;
+}
+/* Soft accent vignette at the edges — subtle, gently pulsing. */
+.finale.show::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(125% 85% at 50% 50%, transparent 58%, var(--fin-vig) 100%);
+  animation: finVig 1s ease-in-out infinite alternate;
+}
+@keyframes finVig {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.finale .fn-num {
+  position: relative;
+  font-size: 132px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #ffffff 8%, var(--fin-edge) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 20px var(--fin-glow));
+}
+.finale .fn-num.pop {
+  animation: finPop 0.5s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+@keyframes finPop {
+  from {
+    transform: scale(1.4);
+    opacity: 0.25;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+/* Expanding ring that fires with each per-second pop. */
+.finale .fn-num.pop::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150px;
+  height: 150px;
+  margin: -75px 0 0 -75px;
+  border-radius: 50%;
+  border: 3px solid var(--fin-edge);
+  animation: finRing 0.6s ease-out forwards;
+}
+@keyframes finRing {
+  from {
+    transform: scale(0.55);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.85);
+    opacity: 0;
+  }
+}
+.finale .fn-label {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--fin-lab);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
 .prompt {
   position: absolute;
   bottom: 22px;

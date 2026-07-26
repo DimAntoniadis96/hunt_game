@@ -23,6 +23,7 @@ export class HUD {
   private el: HTMLElement;
   private refs: Record<string, HTMLElement> = {};
   private bannerTimer = 0;
+  private lastFinaleNum: number | null = null;
 
   constructor(root: HTMLElement) {
     this.el = document.createElement("div");
@@ -46,6 +47,10 @@ export class HUD {
       </div>
       <div class="killfeed" data-r="killfeed"></div>
       <div class="banner" data-r="banner"></div>
+      <div class="finale" data-r="finale">
+        <div class="fn-num" data-r="finalenum">5</div>
+        <div class="fn-label" data-r="finalelabel"></div>
+      </div>
       <div class="prompt" data-r="prompt"></div>
       <div class="scoreboard" data-r="scoreboard">
         <div class="sb-card">
@@ -136,6 +141,34 @@ export class HUD {
     entry.textContent = text;
     this.refs.killfeed.appendChild(entry);
     window.setTimeout(() => entry.remove(), 6000);
+  }
+
+  /**
+   * A simple, centred final-seconds countdown number (used for both the last
+   * seconds of hiding and of the hunt). Pass the number + an optional short
+   * label, or null to clear. Idempotent per-second so calling it every frame
+   * only re-triggers the pop when the number actually changes.
+   */
+  finale(n: number | null, label = "", tone: "hide" | "hunt" = "hunt") {
+    const el = this.refs.finale;
+    if (n == null) {
+      if (this.lastFinaleNum !== null) {
+        el.classList.remove("show");
+        this.lastFinaleNum = null;
+      }
+      return;
+    }
+    if (n === this.lastFinaleNum) return;
+    this.lastFinaleNum = n;
+    el.classList.remove("tone-hide", "tone-hunt");
+    el.classList.add(`tone-${tone}`); // colour accent for this moment
+    this.refs.finalenum.textContent = String(n);
+    this.refs.finalelabel.textContent = label;
+    el.classList.add("show");
+    const num = this.refs.finalenum;
+    num.classList.remove("pop");
+    void num.offsetWidth; // reflow so the CSS animation restarts each second
+    num.classList.add("pop");
   }
 
   banner(text: string, ms = 2500) {

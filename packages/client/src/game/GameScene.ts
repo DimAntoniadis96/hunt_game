@@ -65,6 +65,7 @@ export class GameScene {
   private axeRoot: TransformNode | null = null;
   private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
   private decoyReadyAt = 0; // performance.now() when the next decoy (F) is allowed
+  private lastFinaleSec = -1; // tracks the finale countdown second so the beep fires once each
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
   private lastMeleeTime = -9999;
@@ -341,6 +342,7 @@ export class GameScene {
     this.syncDecoys(state);
     if (phase === Phase.Hunt) this.updateFootsteps(state, moving, dt);
     this.updatePrompts(me, phase);
+    this.updateFinale(me, phase, state);
     this.hud.update(state, me, this.net.ping);
     this.scene.render();
   }
@@ -511,6 +513,49 @@ export class GameScene {
     }
 
     this.hud.prompt(segs.join(`<span class="sep">·</span>`), locked);
+  }
+
+  /**
+   * A shared, simple final-seconds countdown (just a number + beep, no screen
+   * tint):
+   *   • Prep — the last 5s, shown only to living props, as a "hide!" warning.
+   *   • Hunt — the last 3s, shown to EVERYONE, but only while at least one prop
+   *     is still alive (i.e. the seeker hasn't found them all and the round is
+   *     about to end on the clock).
+   */
+  private updateFinale(me: PlayerView | undefined, phase: Phase, state: any) {
+    const sec = Math.max(0, Math.ceil((state.phaseEndsAt - Date.now()) / 1000));
+    let n: number | null = null;
+    let label = "";
+
+    let tone: "hide" | "hunt" = "hunt";
+    if (phase === Phase.Prep && me && me.alive && me.team === Team.Props) {
+      if (sec >= 1 && sec <= 5) {
+        n = sec;
+        label = "Hide";
+        tone = "hide";
+      }
+    } else if (phase === Phase.Hunt) {
+      let propsAlive = 0;
+      state.players.forEach((p: PlayerView) => {
+        if (p.team === Team.Props && p.alive) propsAlive++;
+      });
+      if (propsAlive > 0 && sec >= 1 && sec <= 3) {
+        n = sec; // same for everyone
+        label = "Time";
+        tone = "hunt";
+      }
+    }
+
+    this.hud.finale(n, label, tone);
+    if (n !== null) {
+      if (n !== this.lastFinaleSec) {
+        this.lastFinaleSec = n;
+        this.audio.play("countdown"); // one beep per remaining second
+      }
+    } else {
+      this.lastFinaleSec = -1;
+    }
   }
 
   private nearestProp(): { id: string; modelKey: string; d: number } | null {
