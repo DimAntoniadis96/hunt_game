@@ -3,6 +3,9 @@ import {
   CLIENT_INPUT_RATE,
   ClientMessage,
   DECOY_COOLDOWN_MS,
+  FLASHBANG_BLIND_MS,
+  FLASHBANG_COOLDOWN_MS,
+  FLASHBANG_RANGE,
   DEFAULT_MAP_ID,
   GRAVITY,
   MAX_DECOYS_PER_PLAYER,
@@ -32,7 +35,6 @@ import {
   STATE_PATCH_RATE,
   SPEED_TOLERANCE,
   ServerMessage,
-  TAUNT_COOLDOWN_MS,
   TRANSFORM_COOLDOWN_MS,
   WHISTLE_INTERVAL_MS,
   WHISTLE_FAST_MS,
@@ -56,6 +58,7 @@ import { Decoy, GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
 import { selectMeleeTarget, type MeleeTarget } from "./melee.js";
+import { canFlashbangBlind, type FlashbangActor } from "./flashbang.js";
 import { PLAYER_HIT_HEIGHT, playerHitCylinder, propModelHitCylinder } from "./targetGeometry.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
@@ -72,7 +75,7 @@ interface ClientMeta {
   lastInputAt: number;
   lastShotAt: number;
   reloadDoneAt: number;
-  lastTauntAt: number;
+  lastFlashbangAt: number;
   lastDecoyAt: number;
   lastTransformAt: number;
   lastMeleeAt: number;
@@ -127,7 +130,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       lastInputAt: Date.now(),
       lastShotAt: 0,
       reloadDoneAt: 0,
-      lastTauntAt: 0,
+      lastFlashbangAt: 0,
       lastDecoyAt: 0,
       lastTransformAt: 0,
       lastMeleeAt: 0,
@@ -224,9 +227,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.handleReload(client);
     });
 
-    this.onMessage(ClientMessage.Taunt, (client) => {
+    this.onMessage(ClientMessage.Flashbang, (client) => {
       if (!this.rateOk(client)) return;
-      this.handleTaunt(client);
+      this.handleFlashbang(client);
     });
 
     this.onMessage(ClientMessage.Decoy, (client) => {
@@ -497,21 +500,61 @@ export class GameRoom extends Room<{ state: GameState }> {
     m.reloadDoneAt = Date.now() + WEAPON_RELOAD_MS;
   }
 
-  private handleTaunt(client: Client) {
+  private handleFlashbang(client: Client) {
     const player = this.state.players.get(client.sessionId);
     const m = this.meta.get(client.sessionId);
     if (!player || !m || player.team !== Team.Props || !player.alive) return;
+    if (this.state.phase !== Phase.Hunt) {
+      client.send(ServerMessage.Flashbang, { ok: false, reason: "Flash is available when hunters are released." });
+      return;
+    }
+    if (!player.propModel || !PROP_MODELS[player.propModel]) {
+      client.send(ServerMessage.Flashbang, { ok: false, reason: "Disguise before using flash." });
+      return;
+    }
     const now = Date.now();
-    if (now - m.lastTauntAt < TAUNT_COOLDOWN_MS) return;
-    m.lastTauntAt = now;
-    m.lastWhistleAt = now; // a manual taunt counts as this cycle's auto-whistle
-    // Broadcast a rough locator (reveals approximate area, a fair drawback).
-    this.broadcast(ServerMessage.RoundEvent, {
-      phase: this.state.phase,
-      round: this.state.round,
-      secondsLeft: this.secondsLeft(),
-      message: "taunt",
+    if (m.lastFlashbangAt > 0 && now - m.lastFlashbangAt < FLASHBANG_COOLDOWN_MS) {
+      const cooldownMs = FLASHBANG_COOLDOWN_MS - (now - m.lastFlashbangAt);
+      client.send(ServerMessage.Flashbang, { ok: false, reason: `Flash ready in ${Math.ceil(cooldownMs / 1000)}s`, cooldownMs });
+      return;
+    }
+    m.lastFlashbangAt = now;
+
+    const source: FlashbangActor = {
+      id: player.id,
+      team: player.team,
+      alive: player.alive,
+      x: player.x,
+      y: player.y,
+      z: player.z,
+    };
+    const model = PROP_MODELS[player.propModel];
+    const fx = {
+      sourceId: player.id,
+      x: player.x,
+      y: player.y + model.height * 0.55,
+      z: player.z,
+      range: FLASHBANG_RANGE,
+      durationMs: FLASHBANG_BLIND_MS,
+    };
+
+    let affectedCount = 0;
+    this.clients.forEach((targetClient) => {
+      const target = this.state.players.get(targetClient.sessionId);
+      if (!target) return;
+      const actor: FlashbangActor = {
+        id: target.id,
+        team: target.team,
+        alive: target.alive,
+        x: target.x,
+        y: target.y,
+        z: target.z,
+      };
+      if (!canFlashbangBlind(source, actor, FLASHBANG_RANGE)) return;
+      affectedCount++;
+      targetClient.send(ServerMessage.Flashbang, { ok: true, ...fx, blinded: true });
     });
+    client.send(ServerMessage.Flashbang, { ok: true, ...fx, blinded: false, affectedCount, cooldownMs: FLASHBANG_COOLDOWN_MS });
   }
 
   /** Drop a fake clone of the prop's current disguise where they stand. */
@@ -730,6 +773,8 @@ export class GameRoom extends Room<{ state: GameState }> {
       player.rotationLocked = false;
       player.propModel = "";
       player.moving = false;
+      const m = this.meta.get(player.id);
+      if (m) m.lastFlashbangAt = 0;
       if (player.team === Team.Hunters) {
         const s = map.hunterSpawns[hi % map.hunterSpawns.length];
         hi++;

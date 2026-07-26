@@ -55,7 +55,7 @@ export class Screens {
         </div>
         <div class="error" data-r="err"></div>
         <p class="hint">Controls: <b>WASD</b> move · <b>Mouse</b> look · <b>Space</b> jump · <b>E</b> disguise (props) ·
-        <b>R</b> reload/lock · <b>T</b> taunt · <b>Left-click</b> shoot (hunters) · <b>Tab</b> scores.</p>
+        <b>R</b> reload/lock · <b>T</b> flash · <b>Left-click</b> shoot (hunters) · <b>Tab</b> scores.</p>
       </div>`;
 
     this.lobby = document.createElement("div");

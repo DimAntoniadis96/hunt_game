@@ -18,7 +18,7 @@ eliminate     e.g. eliminate.ogg   — a prop is killed
 countdown     e.g. countdown.ogg   — lobby countdown tick
 round_start   e.g. round_start.ogg — round begins
 round_end     e.g. round_end.ogg   — round / match ends
-taunt         e.g. taunt.ogg       — prop taunt locator
+flash         e.g. flash.ogg       — prop flashbang burst
 step          e.g. step.ogg        — hunter footstep (played positionally)
 ```
 

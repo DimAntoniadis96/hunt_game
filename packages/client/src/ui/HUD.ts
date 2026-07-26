@@ -23,6 +23,7 @@ export class HUD {
   private el: HTMLElement;
   private refs: Record<string, HTMLElement> = {};
   private bannerTimer = 0;
+  private flashTimer = 0;
   private lastFinaleNum: number | null = null;
 
   constructor(root: HTMLElement) {
@@ -48,6 +49,9 @@ export class HUD {
       </div>
       <div class="killfeed" data-r="killfeed"></div>
       <div class="banner" data-r="banner"></div>
+      <div class="flashblind" data-r="flashblind" aria-hidden="true">
+        <div class="flashblind-label">BLINDED</div>
+      </div>
       <div class="hunter-wait-screen" data-r="hunterwait" aria-hidden="true">
         <div class="hunter-wait-map" aria-hidden="true">
           <span class="map-house"></span>
@@ -215,6 +219,20 @@ export class HUD {
     b.classList.add("show");
     window.clearTimeout(this.bannerTimer);
     this.bannerTimer = window.setTimeout(() => b.classList.remove("show"), ms);
+  }
+
+  flashBlind(ms: number) {
+    const f = this.refs.flashblind;
+    f.style.setProperty("--flash-ms", `${Math.max(300, ms)}ms`);
+    f.classList.remove("show");
+    void f.offsetWidth;
+    f.classList.add("show");
+    f.setAttribute("aria-hidden", "false");
+    window.clearTimeout(this.flashTimer);
+    this.flashTimer = window.setTimeout(() => {
+      f.classList.remove("show");
+      f.setAttribute("aria-hidden", "true");
+    }, ms);
   }
 
   prompt(html: string | null, locked = false) {

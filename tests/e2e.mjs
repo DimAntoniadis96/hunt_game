@@ -47,6 +47,8 @@ const check = (cond, label) => {
 // --- P1 creates a private room ---
 await p1.goto(URL);
 await p1.waitForSelector("#name", { timeout: 10000 });
+const controlsHint = await p1.textContent(".hint");
+check(controlsHint?.includes("T") && controlsHint?.includes("flash") && !controlsHint?.includes("taunt"), "menu controls show T flash instead of taunt");
 await p1.evaluate(() => localStorage.removeItem("mimic:settings"));
 await p1.click('[data-a="settings"]');
 await p1.waitForSelector(".settings-screen:not(.hidden)", { timeout: 5000 });

@@ -24,7 +24,7 @@ export type Sfx =
   | "countdown"
   | "round_start"
   | "round_end"
-  | "taunt"
+  | "flash"
   | "whistle"
   | "step"
   | "axe1"
@@ -60,7 +60,7 @@ const SAMPLE_NAMES: Sfx[] = [
   "countdown",
   "round_start",
   "round_end",
-  "taunt",
+  "flash",
   "step",
   "axe1",
   "axe2",
@@ -474,9 +474,10 @@ export class AudioManager {
         this.tone(560, 0.18, { type: "sine", slideTo: 440, gain: 0.5, cutoff: 3000 });
         this.tone(420, 0.26, { type: "sine", slideTo: 300, gain: 0.45, delay: 0.16, cutoff: 2600 });
         break;
-      case "taunt":
-        this.tone(880, 0.12, { type: "square", slideTo: 520, gain: 0.4, cutoff: 3000 });
-        this.tone(660, 0.14, { type: "triangle", slideTo: 990, gain: 0.35, delay: 0.1 });
+      case "flash":
+        this.noise(0.11, { gain: 0.62, type: "highpass", cutoff: 2600 });
+        this.tone(1800, 0.16, { type: "sine", slideTo: 4200, gain: 0.34, attack: 0.002, cutoff: 5200 });
+        this.tone(420, 0.2, { type: "triangle", slideTo: 120, gain: 0.22, delay: 0.04, cutoff: 1800 });
         break;
       case "whistle": {
         // A cheeky "wheet-woo" locator whistle (up then a longer down note).

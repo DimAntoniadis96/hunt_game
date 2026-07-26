@@ -40,7 +40,7 @@ export const ClientMessage = {
   Shoot: "shoot", // hunter fires
   Melee: "melee", // hunter's out-of-ammo close attack
   Reload: "reload",
-  Taunt: "taunt",
+  Flashbang: "flashbang",
   Decoy: "decoy", // prop drops a fake clone of its current disguise
   Ping: "ping",
 } as const;
@@ -59,7 +59,8 @@ export const ServerMessage = {
   Eliminated: "eliminated",
   Killfeed: "killfeed",
   TransformResult: "transform_result",
-  RoundEvent: "round_event", // countdown ticks, phase changes, taunts
+  RoundEvent: "round_event", // countdown ticks and phase changes
+  Flashbang: "flashbang", // close-range prop flash / hunter blind effect
   Whistle: "whistle", // a prop's auto-whistle locator (with world position)
   Error: "error",
 } as const;
@@ -136,6 +137,20 @@ export interface TransformResultPayload {
   ok: boolean;
   propId?: string;
   modelKey?: string;
+  reason?: string;
+}
+
+export interface FlashbangPayload {
+  ok: boolean;
+  sourceId?: string;
+  x?: number;
+  y?: number;
+  z?: number;
+  range?: number;
+  durationMs?: number;
+  cooldownMs?: number;
+  blinded?: boolean;
+  affectedCount?: number;
   reason?: string;
 }
 

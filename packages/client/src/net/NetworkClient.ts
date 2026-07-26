@@ -136,8 +136,8 @@ export class NetworkClient {
   reload() {
     this.room?.send(ClientMessage.Reload, {});
   }
-  taunt() {
-    this.room?.send(ClientMessage.Taunt, {});
+  flashbang() {
+    this.room?.send(ClientMessage.Flashbang, {});
   }
   decoy() {
     this.room?.send(ClientMessage.Decoy, {});

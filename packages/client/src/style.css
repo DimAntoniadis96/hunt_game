@@ -394,6 +394,55 @@ button:disabled {
   opacity: 1;
 }
 
+.flashblind {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  background: #fff;
+}
+.flashblind.show {
+  visibility: visible;
+  opacity: 1;
+  animation: flashBlind var(--flash-ms, 1800ms) linear forwards;
+}
+.flashblind::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 1) 0 34%, rgba(243, 255, 255, 1) 70%, rgba(232, 255, 250, 1) 100%),
+    linear-gradient(180deg, #fff, #f3ffff);
+}
+.flashblind-label {
+  position: relative;
+  padding: 10px 18px;
+  border: 1px solid rgba(8, 20, 28, 0.16);
+  border-radius: 8px;
+  color: rgba(6, 14, 22, 0.62);
+  background: rgba(255, 255, 255, 0.28);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: clamp(22px, 5vw, 54px);
+  font-weight: 900;
+}
+@keyframes flashBlind {
+  0% {
+    opacity: 1;
+  }
+  99% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
 /* ---- Hunter prep blind screen ------------------------------------------ *
  * Covers the 3D map only for hunters during Prep, so they cannot scout hiding
  * spots while props are setting up. */
@@ -824,6 +873,12 @@ button:disabled {
   background: linear-gradient(180deg, #45e6ad, #1f9e73);
   border-color: rgba(255, 255, 255, 0.35);
   color: #04120d;
+}
+.prompt kbd.key-flash {
+  background: linear-gradient(180deg, #faffff, #65fff0);
+  border-color: rgba(255, 255, 255, 0.85);
+  color: #061016;
+  box-shadow: 0 0 14px rgba(111, 255, 241, 0.55), 0 1px 0 rgba(0, 0, 0, 0.5);
 }
 .prompt .sep {
   opacity: 0.32;

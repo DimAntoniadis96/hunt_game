@@ -64,8 +64,10 @@ export const SCORE_PER_PROP_KILL = 100; // hunter killing a prop
 export const SCORE_PROP_SURVIVE = 150; // prop alive at round end
 export const SCORE_WRONG_SHOT_PENALTY = 25;
 
-/** Taunt: props are periodically forced/allowed to emit a locator sound. */
-export const TAUNT_COOLDOWN_MS = 12000;
+/** Flashbang: a close-range prop escape tool that briefly blinds nearby hunters. */
+export const FLASHBANG_RANGE = 4.0; // metres — intentionally short, only panic-close
+export const FLASHBANG_BLIND_MS = 1800; // long enough to escape, short enough to stay fair
+export const FLASHBANG_COOLDOWN_MS = 18000; // prevents repeated chain-blinding
 
 /**
  * Auto-whistle: during the hunt, every alive prop automatically emits a locator

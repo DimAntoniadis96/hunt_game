@@ -13,6 +13,8 @@ import {
   CLIENT_INPUT_RATE,
   DECOY_COOLDOWN_MS,
   DEFAULT_MAP_ID,
+  FLASHBANG_BLIND_MS,
+  FLASHBANG_COOLDOWN_MS,
   HUNTER_WALK_SPEED,
   MAPS,
   MELEE_COOLDOWN_MS,
@@ -69,6 +71,7 @@ export class GameScene {
   private axeRoot: TransformNode | null = null;
   private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
   private decoyReadyAt = 0; // performance.now() when the next decoy (F) is allowed
+  private flashbangReadyAt = 0; // performance.now() when the next flashbang (T) is allowed
   private lastFinaleSec = -1; // tracks the finale countdown second so the beep fires once each
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
@@ -323,6 +326,7 @@ export class GameScene {
       this.input.setRotationLocked(false); // fresh round starts unlocked
       this.transformReadyAt = 0; // disguise cooldown resets each round
       this.decoyReadyAt = 0;
+      this.flashbangReadyAt = 0;
       this.lastDisguiseModel = "";
     }
     if (me && me.alive !== this.prevAlive && !me.alive) {
@@ -542,7 +546,10 @@ export class GameScene {
       segs.push(lockSeg);
       const decoyCd = Math.ceil(Math.max(0, this.decoyReadyAt - now) / 1000);
       segs.push(decoyCd > 0 ? `<kbd>F</kbd> decoy <span class="cd">${decoyCd}s</span>` : `<kbd>F</kbd> decoy`);
-      segs.push(`<kbd>T</kbd> taunt`);
+      if (phase === Phase.Hunt) {
+        const flashCd = Math.ceil(Math.max(0, this.flashbangReadyAt - now) / 1000);
+        segs.push(flashCd > 0 ? `<kbd>T</kbd> flash <span class="cd">${flashCd}s</span>` : `<kbd class="key-flash">T</kbd> flash`);
+      }
     }
 
     this.hud.prompt(segs.join(`<span class="sep">·</span>`), locked);
@@ -648,7 +655,7 @@ export class GameScene {
         }
         break;
       case "KeyT":
-        if (me.team === Team.Props && me.alive) this.net.taunt();
+        if (me.team === Team.Props && me.alive && me.propModel) this.tryFlashbang();
         break;
       case "Tab":
         e.preventDefault();
@@ -699,6 +706,22 @@ export class GameScene {
     }
     this.lastShotTime = performance.now(); // recoil handled in animateGun()
     this.spawnTracer(from, o.add(d.scale(45)));
+  }
+
+  private tryFlashbang() {
+    const state = this.room.state as any;
+    if (state.phase !== Phase.Hunt) {
+      this.hud.banner("Flash is available when hunters are released.", 1200);
+      this.audio.play("ui");
+      return;
+    }
+    const now = performance.now();
+    if (now < this.flashbangReadyAt) {
+      this.hud.banner(`Flash ready in ${Math.ceil((this.flashbangReadyAt - now) / 1000)}s`, 900);
+      this.audio.play("ui");
+      return;
+    }
+    this.net.flashbang();
   }
 
   /** Axe swing (F) — a short-range melee, usable any time regardless of ammo. */
@@ -755,6 +778,34 @@ export class GameScene {
     s.isPickable = false;
     s.renderingGroupId = 1;
     window.setTimeout(() => s.dispose(), 50);
+  }
+
+  private spawnFlashbangBurst(pos: Vector3) {
+    const s = MeshBuilder.CreateSphere("flashbangBurst", { diameter: 1.2, segments: 18 }, this.scene);
+    s.position.copyFrom(pos);
+    const m = new StandardMaterial("flashbangBurstMat", this.scene);
+    m.emissiveColor = new Color3(1, 0.98, 0.78);
+    m.diffuseColor = new Color3(1, 0.95, 0.78);
+    m.alpha = 0.85;
+    m.disableLighting = true;
+    s.material = m;
+    s.isPickable = false;
+    s.renderingGroupId = 1;
+
+    const started = performance.now();
+    const tick = () => {
+      const t = Math.min(1, (performance.now() - started) / 260);
+      const scale = 1 + t * 3.8;
+      s.scaling.setAll(scale);
+      m.alpha = 0.85 * (1 - t);
+      if (t >= 1) {
+        s.dispose();
+        m.dispose();
+        return;
+      }
+      window.requestAnimationFrame(tick);
+    };
+    tick();
   }
 
   // ---- server-driven effects ---------------------------------------------
@@ -814,11 +865,25 @@ export class GameScene {
       const { vol, pan } = this.spatialParams(m.x, m.y ?? 0, m.z, 46);
       this.audio.playWhistle(m.sound ?? 1, vol, pan);
     });
-    room.onMessage(ServerMessage.RoundEvent, (m: any) => {
-      if (m.message === "taunt") {
-        this.audio.play("taunt");
+    room.onMessage(ServerMessage.Flashbang, (m: any) => {
+      if (!m.ok) {
+        if (typeof m.cooldownMs === "number") this.flashbangReadyAt = performance.now() + m.cooldownMs;
+        this.hud.banner(m.reason || "Flash unavailable", 1200);
+        this.audio.play("ui");
         return;
       }
+      const pos = new Vector3(m.x ?? 0, m.y ?? 0, m.z ?? 0);
+      this.spawnFlashbangBurst(pos);
+      const { vol, pan } = this.spatialParams(pos.x, pos.y, pos.z, 12);
+      this.audio.playSpatial("flash", Math.max(0.35, vol), pan);
+      if (m.blinded) {
+        this.hud.flashBlind(m.durationMs ?? FLASHBANG_BLIND_MS);
+      } else {
+        this.flashbangReadyAt = performance.now() + (m.cooldownMs ?? FLASHBANG_COOLDOWN_MS);
+        this.hud.banner((m.affectedCount ?? 0) > 0 ? "Flashbang hit!" : "No seeker close enough", 1000);
+      }
+    });
+    room.onMessage(ServerMessage.RoundEvent, (m: any) => {
       if (m.message) this.hud.banner(m.message, 2200);
       if (m.phase === Phase.Prep || m.phase === Phase.Hunt) this.audio.play("round_start");
       else if (m.phase === Phase.RoundEnd || m.phase === Phase.MatchEnd) this.audio.play("round_end");
