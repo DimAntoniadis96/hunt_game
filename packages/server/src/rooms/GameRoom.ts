@@ -1,9 +1,4 @@
-// colyseus 0.15 is CommonJS with no "exports" map, so ESM named imports fail at
-// runtime. Import the default (= module.exports) for runtime values and use a
-// type-only import for annotations.
-import colyseus from "colyseus";
-import type { Client } from "colyseus";
-const { Room, matchMaker } = colyseus;
+import { Room, matchMaker, type Client } from "@colyseus/core";
 import {
   CLIENT_INPUT_RATE,
   ClientMessage,
@@ -91,7 +86,7 @@ interface ClientMeta {
   disconnectedAt: number;
 }
 
-export class GameRoom extends Room<GameState> {
+export class GameRoom extends Room<{ state: GameState }> {
   maxClients = MAX_PLAYERS;
   private meta = new Map<string, ClientMeta>();
   private roomCode = "";
@@ -154,25 +149,25 @@ export class GameRoom extends Room<GameState> {
     console.log(`[GameRoom] ${player.name} joined ${this.roomId} (${this.clients.length}/${this.maxClients})`);
   }
 
-  async onLeave(client: Client, consented: boolean) {
+  async onDrop(client: Client) {
     const player = this.state.players.get(client.sessionId);
     if (player) player.connected = false;
     const m = this.meta.get(client.sessionId);
     if (m) m.disconnectedAt = Date.now();
 
     try {
-      if (!consented) {
-        // Give the player a window to reconnect (e.g. dropped wifi / refresh).
-        await this.allowReconnection(client, 20);
-        const p = this.state.players.get(client.sessionId);
-        if (p) p.connected = true;
-        console.log(`[GameRoom] ${client.sessionId} reconnected`);
-        return;
-      }
+      // Give the player a window to reconnect (e.g. dropped wifi / refresh).
+      await this.allowReconnection(client, 20);
+      const p = this.state.players.get(client.sessionId);
+      if (p) p.connected = true;
+      console.log(`[GameRoom] ${client.sessionId} reconnected`);
+      return;
     } catch {
-      // reconnection window elapsed -> fall through to cleanup
+      // Reconnection window elapsed -> onLeave performs final cleanup.
     }
+  }
 
+  async onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
     this.meta.delete(client.sessionId);
     console.log(`[GameRoom] ${client.sessionId} removed`);
@@ -273,6 +268,14 @@ export class GameRoom extends Room<GameState> {
     const dt = Math.max(0.03, Math.min(0.5, (now - m.lastInputAt) / 1000));
     m.lastInputAt = now;
 
+    // A locked prop is pinned server-side. Keep the input timestamp fresh so
+    // unlocking does not earn an oversized first movement step.
+    if (player.team === Team.Props && player.rotationLocked) {
+      player.rp = clampPitch(p.rp);
+      player.moving = false;
+      return;
+    }
+
     // Speed-hack / teleport rejection: cap horizontal displacement by max speed.
     const maxStep = PLAYER_SPRINT_SPEED * dt * SPEED_TOLERANCE + 0.05;
     const dx = p.x - player.x;
@@ -299,11 +302,6 @@ export class GameRoom extends Room<GameState> {
     player.ry = clampAngle(p.ry);
     player.rp = clampPitch(p.rp);
     player.moving = !!p.moving;
-
-    // A locked prop cannot slide around.
-    if (player.team === Team.Props && player.rotationLocked) {
-      // allow tiny nudge only; effectively pinned
-    }
   }
 
   private handleTransform(client: Client, p: TransformPayload) {
@@ -434,20 +432,20 @@ export class GameRoom extends Room<GameState> {
     m.lastMeleeAt = now;
 
     // Collect every candidate (prop players + decoys) and let the pure selector
-    // pick the nearest one inside the forward cone at the crosshair centre.
+    // pick the nearest one actually reached by the short aim-aligned swing.
     const targets: MeleeTarget[] = [];
     this.state.players.forEach((o) => {
       if (o === player || !o.alive || o.team !== Team.Props) return;
       const model = PROP_MODELS[o.propModel];
       const h = model ? model.height : PLAYER_HIT_HEIGHT;
       const r = model ? model.radius : PLAYER_RADIUS;
-      targets.push({ kind: "player", id: o.id, x: o.x, y: o.y + h / 2, z: o.z, radius: r });
+      targets.push({ kind: "player", id: o.id, x: o.x, baseY: o.y, z: o.z, height: h, radius: r });
     });
     this.state.decoys.forEach((dd) => {
       const model = PROP_MODELS[dd.modelKey];
       const h = model ? model.height : 1;
       const r = model ? model.radius : 0.5;
-      targets.push({ kind: "decoy", id: dd.id, x: dd.x, y: dd.y + h / 2, z: dd.z, radius: r });
+      targets.push({ kind: "decoy", id: dd.id, x: dd.x, baseY: dd.y, z: dd.z, height: h, radius: r });
     });
 
     const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];

@@ -1,30 +1,40 @@
 import { createServer } from "node:http";
 import express from "express";
 import cors from "cors";
-import colyseus from "colyseus";
-import wsTransport from "@colyseus/ws-transport";
-const { Server, matchMaker } = colyseus;
-const { WebSocketTransport } = wsTransport;
+import { Server, matchMaker } from "@colyseus/core";
+import { WebSocketTransport } from "@colyseus/ws-transport";
 import { GameRoom } from "./rooms/GameRoom.js";
 
 const PORT = Number(process.env.PORT ?? 2567);
 const NODE_ENV = process.env.NODE_ENV ?? "development";
 
 // Allowed browser origins. In prod set CORS_ORIGIN to your real domain(s).
-const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
+const DEFAULT_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://[::1]:5173"];
+const allowedOrigins = (process.env.CORS_ORIGIN ?? DEFAULT_ALLOWED_ORIGINS.join(","))
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+
+function isAllowedOrigin(origin?: string | null): boolean {
+  return !origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin);
+}
+
+function corsOriginFor(origin?: string | null): string {
+  if (!origin) return "*";
+  if (allowedOrigins.includes("*")) return origin;
+  return allowedOrigins.includes(origin) ? origin : "null";
+}
+
+matchMaker.controller.getCorsHeaders = (headers: Headers) => ({
+  "Access-Control-Allow-Origin": corsOriginFor(headers.get("origin")),
+});
 
 const app = express();
 app.use(
   cors({
     origin(origin, cb) {
       // Allow same-origin / curl (no origin) and any explicitly allowed origin.
-      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
-        return cb(null, true);
-      }
-      cb(new Error(`Origin ${origin} not allowed by CORS`));
+      cb(null, isAllowedOrigin(origin));
     },
   }),
 );
@@ -59,7 +69,10 @@ app.get("/api/rooms/:code", async (req, res) => {
 
 const httpServer = createServer(app);
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server: httpServer }),
+  transport: new WebSocketTransport({
+    server: httpServer,
+    verifyClient: (info: { origin?: string | null }) => isAllowedOrigin(info.origin),
+  }),
 });
 
 // One room type. filterBy(["mode"]) keeps public matchmaking from mixing modes.

@@ -572,65 +572,70 @@ export class GameScene {
 
   // ---- input actions ------------------------------------------------------
 
-  private registerActionInput() {
-    this.canvas.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      if (!this.input.locked) {
-        this.input.requestLock();
-        return;
-      }
-      this.tryShoot();
-    });
+  private onPointerDown = (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    if (!this.input.locked) {
+      this.input.requestLock();
+      return;
+    }
+    this.tryShoot();
+  };
 
-    window.addEventListener("keydown", (e) => {
-      const me = this.me();
-      if (!me) return;
-      switch (e.code) {
-        case "KeyE":
-          if (me.team === Team.Props && me.alive) this.tryDisguise();
-          break;
-        case "KeyR":
-          if (me.team === Team.Hunters) this.net.reload();
-          else if (me.team === Team.Props && me.alive) {
-            const nl = !this.input.isRotationLocked();
-            this.input.setRotationLocked(nl); // instant local freeze (incl. mid-air)
-            this.net.lockRotation(nl); // so other players see the frozen facing
-            this.audio.play("ui"); // no center banner — the frozen model + sound are the cue
+  private onKeyDown = (e: KeyboardEvent) => {
+    const me = this.me();
+    if (!me) return;
+    switch (e.code) {
+      case "KeyE":
+        if (me.team === Team.Props && me.alive) this.tryDisguise();
+        break;
+      case "KeyR":
+        if (me.team === Team.Hunters) this.net.reload();
+        else if (me.team === Team.Props && me.alive) {
+          const nl = !this.input.isRotationLocked();
+          this.input.setRotationLocked(nl); // instant local freeze (incl. mid-air)
+          this.net.lockRotation(nl); // so other players see the frozen facing
+          this.audio.play("ui"); // no center banner — the frozen model + sound are the cue
+        }
+        break;
+      case "KeyF":
+        if (me.team === Team.Hunters && me.alive) {
+          this.tryMelee(); // axe swing — always available, independent of ammo
+        } else if (me.team === Team.Props && me.alive && me.propModel) {
+          const now = performance.now();
+          if (now < this.decoyReadyAt) {
+            this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900);
+            this.audio.play("ui");
+          } else {
+            this.net.decoy();
+            this.decoyReadyAt = now + DECOY_COOLDOWN_MS;
+            this.audio.play("transform"); // no center banner — the clone + sound are the cue
           }
-          break;
-        case "KeyF":
-          if (me.team === Team.Hunters && me.alive) {
-            this.tryMelee(); // axe swing — always available, independent of ammo
-          } else if (me.team === Team.Props && me.alive && me.propModel) {
-            const now = performance.now();
-            if (now < this.decoyReadyAt) {
-              this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900);
-              this.audio.play("ui");
-            } else {
-              this.net.decoy();
-              this.decoyReadyAt = now + DECOY_COOLDOWN_MS;
-              this.audio.play("transform"); // no center banner — the clone + sound are the cue
-            }
-          }
-          break;
-        case "KeyT":
-          if (me.team === Team.Props && me.alive) this.net.taunt();
-          break;
-        case "Tab":
-          e.preventDefault();
-          if (!this.scoreboardOpen) {
-            this.scoreboardOpen = true;
-            this.hud.scoreboard(true, this.room.state as any);
-          }
-          break;
-      }
-    });
-    window.addEventListener("keyup", (e) => {
-      if (e.code === "Tab") {
-        this.scoreboardOpen = false;
-        this.hud.scoreboard(false);
-      }
-    });
+        }
+        break;
+      case "KeyT":
+        if (me.team === Team.Props && me.alive) this.net.taunt();
+        break;
+      case "Tab":
+        e.preventDefault();
+        if (!this.scoreboardOpen) {
+          this.scoreboardOpen = true;
+          this.hud.scoreboard(true, this.room.state as any);
+        }
+        break;
+    }
+  };
+
+  private onKeyUp = (e: KeyboardEvent) => {
+    if (e.code === "Tab") {
+      this.scoreboardOpen = false;
+      this.hud.scoreboard(false);
+    }
+  };
+
+  private registerActionInput() {
+    this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
   }
 
   private tryShoot() {
@@ -785,6 +790,9 @@ export class GameScene {
   }
 
   dispose() {
+    this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("pointerlockchange", this.onLockChange);
     this.input.dispose();

@@ -1,4 +1,4 @@
-import { Client, Room } from "colyseus.js";
+import { Client, Room, type SeatReservation } from "colyseus.js";
 import {
   ClientMessage,
   ServerMessage,
@@ -11,6 +11,41 @@ export type ConnectMode =
   | { kind: "create"; name: string }
   | { kind: "join"; name: string; code: string };
 
+interface FlatSeatReservation {
+  name?: string;
+  roomId?: string;
+  sessionId?: string;
+  processId?: string;
+  publicAddress?: string;
+  reconnectionToken?: string;
+  devMode?: boolean;
+  protocol?: string;
+}
+
+function normalizeSeatReservation(response: SeatReservation | FlatSeatReservation): SeatReservation {
+  const raw = response as SeatReservation & FlatSeatReservation & { room?: unknown };
+  if (raw.room || !raw.name || !raw.roomId) {
+    return response as SeatReservation;
+  }
+  return {
+    ...raw,
+    room: {
+      name: raw.name,
+      roomId: raw.roomId,
+      clients: 0,
+      maxClients: 0,
+      processId: raw.processId,
+      publicAddress: raw.publicAddress,
+    },
+  } as unknown as SeatReservation;
+}
+
+class CompatClient extends Client {
+  consumeSeatReservation<T = any>(response: SeatReservation | FlatSeatReservation, rootSchema?: any, reuseRoomInstance?: Room): Promise<Room<T>> {
+    return super.consumeSeatReservation(normalizeSeatReservation(response), rootSchema, reuseRoomInstance);
+  }
+}
+
 /** Thin, typed wrapper around a Colyseus room + a latency ping loop. */
 export class NetworkClient {
   readonly client: Client;
@@ -21,7 +56,7 @@ export class NetworkClient {
   private lastRtt = 0;
 
   constructor(serverUrl: string) {
-    this.client = new Client(serverUrl);
+    this.client = new CompatClient(serverUrl);
     // Derive the HTTP(S) base from the WS(S) url for the code->roomId lookup.
     this.httpBase = serverUrl.replace(/^ws/, "http").replace(/\/$/, "");
   }

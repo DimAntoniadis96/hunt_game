@@ -2,9 +2,26 @@
 // colyseus.js clients (no browser). Run against a server on :2567.
 import { Client } from "colyseus.js";
 
-const URL = "ws://localhost:2567";
-const HTTP = "http://localhost:2567";
+const URL = process.env.SMOKE_WS_URL ?? "ws://localhost:2567";
+const HTTP = process.env.SMOKE_HTTP_URL ?? URL.replace(/^ws/, "http").replace(/\/$/, "");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+class CompatClient extends Client {
+  consumeSeatReservation(response, rootSchema, reuseRoomInstance) {
+    if (response && !response.room && response.name && response.roomId) {
+      response = {
+        ...response,
+        room: {
+          name: response.name,
+          roomId: response.roomId,
+          processId: response.processId,
+          publicAddress: response.publicAddress,
+        },
+      };
+    }
+    return super.consumeSeatReservation(response, rootSchema, reuseRoomInstance);
+  }
+}
 
 function summarize(state) {
   const players = [];
@@ -18,8 +35,8 @@ const assert = (cond, label) => {
   if (!cond) process.exitCode = 1;
 };
 
-const c1 = new Client(URL);
-const c2 = new Client(URL);
+const c1 = new CompatClient(URL);
+const c2 = new CompatClient(URL);
 
 // --- create private room ---
 const room1 = await c1.create("game", { mode: "private", name: "Alice" });
@@ -80,6 +97,15 @@ hClient.send("input", { x: hunter.x + 999, y: 0, z: hunter.z + 999, ry: 0, rp: 0
 await sleep(400);
 const hunterAfter = [...room1.state.players.values()].find((p) => p.id === hunter.id);
 assert(Math.hypot(hunterAfter.x - hx, hunterAfter.z - hunter.z) < 5, `teleport clamped (moved ${Math.hypot(hunterAfter.x - hx, hunterAfter.z - hunter.z).toFixed(2)}m, not 1400m)`);
+
+// --- locked props: malicious movement packets must not move the prop ---
+hClient.send("lock_rotation", { locked: true });
+await sleep(200);
+const lockedBefore = [...room1.state.players.values()].find((p) => p.id === hunter.id);
+hClient.send("input", { x: lockedBefore.x + 0.25, y: lockedBefore.y, z: lockedBefore.z, ry: lockedBefore.ry, rp: 0, moving: true, grounded: true, seq: 3 });
+await sleep(300);
+const lockedAfter = [...room1.state.players.values()].find((p) => p.id === hunter.id);
+assert(Math.hypot(lockedAfter.x - lockedBefore.x, lockedAfter.z - lockedBefore.z) < 0.01, `locked prop stayed pinned (${lockedBefore.x.toFixed(2)},${lockedBefore.z.toFixed(2)} -> ${lockedAfter.x.toFixed(2)},${lockedAfter.z.toFixed(2)})`);
 
 console.log("\nFinal state:", summarize(room1.state));
 console.log("\n--- RESULTS ---");
