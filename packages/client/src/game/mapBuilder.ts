@@ -805,11 +805,18 @@ export function createHunterVisual(scene: Scene, name: string, hex = "#ff7043", 
   return root;
 }
 
+export function setPropVisualCollisions(node: TransformNode, enabled: boolean): void {
+  node.getChildMeshes().forEach((m) => {
+    m.checkCollisions = enabled;
+    m.isPickable = enabled;
+  });
+}
+
 export function buildStaticProps(scene: Scene, map: MapDefinition): void {
   for (const spawn of map.props) {
     const node = createPropVisual(scene, spawn.modelKey, `static_${spawn.id}`);
-    node.position.set(spawn.x, 0, spawn.z);
+    node.position.set(spawn.x, spawn.y, spawn.z);
     node.rotation.y = spawn.ry;
-    node.getChildMeshes().forEach((m) => (m.checkCollisions = true));
+    setPropVisualCollisions(node, true);
   }
 }

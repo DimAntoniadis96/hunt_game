@@ -1,6 +1,6 @@
 import { chromium } from "playwright";
 
-const URL = "http://localhost:5173/";
+const URL = process.env.E2E_URL ?? "http://localhost:5173/";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [];
 

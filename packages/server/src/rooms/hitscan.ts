@@ -38,10 +38,10 @@ export interface ShotResolution {
 }
 
 /**
- * Ray vs a clamped vertical cylinder. Returns the nearest positive distance `t`
- * (metres, dir must be unit length) where the ray enters the cylinder between
- * baseY..baseY+height, or null on a miss. Handles the ray originating INSIDE the
- * cylinder (near root used, else far root).
+ * Ray vs a clamped vertical cylinder. Returns the nearest non-negative distance
+ * `t` (metres, dir must be unit length) where the ray first touches the finite
+ * cylinder, including its top/bottom caps, or null on a miss. If the ray starts
+ * inside the cylinder, the target is already hit and 0 is returned.
  */
 export function rayCylinder(
   ox: number,
@@ -54,38 +54,52 @@ export function rayCylinder(
   y0: number,
   y1: number,
 ): number | null {
-  const a = dir.x * dir.x + dir.z * dir.z;
+  const EPS = 1e-8;
   const ox2 = ox - cx;
   const oz2 = oz - cz;
+  const r2 = radius * radius;
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const insideFootprint = ox2 * ox2 + oz2 * oz2 <= r2 + EPS;
+  if (insideFootprint && oy >= minY - EPS && oy <= maxY + EPS) return 0;
 
-  // Purely-vertical ray: hit only if the origin is within the disc footprint.
-  if (a < 1e-8) {
-    if (ox2 * ox2 + oz2 * oz2 > radius * radius) return null;
-    if (dir.y > 0) {
-      const t = (y1 - oy) / dir.y;
-      return t >= 0 ? t : null;
-    } else if (dir.y < 0) {
-      const t = (y0 - oy) / dir.y;
-      return t >= 0 ? t : null;
+  let best: number | null = null;
+  const consider = (t: number) => {
+    if (t < -EPS) return;
+    const clampedT = Math.max(0, t);
+    if (best === null || clampedT < best) best = clampedT;
+  };
+
+  // Side wall intersections.
+  const a = dir.x * dir.x + dir.z * dir.z;
+  if (a >= EPS) {
+    const b = 2 * (ox2 * dir.x + oz2 * dir.z);
+    const c = ox2 * ox2 + oz2 * oz2 - r2;
+    const disc = b * b - 4 * a * c;
+    if (disc >= -EPS) {
+      const sq = Math.sqrt(Math.max(0, disc));
+      const tNear = (-b - sq) / (2 * a);
+      const tFar = (-b + sq) / (2 * a);
+      for (const t of [tNear, tFar]) {
+        if (t < -EPS) continue;
+        const hy = oy + dir.y * t;
+        if (hy >= minY - EPS && hy <= maxY + EPS) consider(t);
+      }
     }
-    return null;
   }
 
-  const b = 2 * (ox2 * dir.x + oz2 * dir.z);
-  const c = ox2 * ox2 + oz2 * oz2 - radius * radius;
-  const disc = b * b - 4 * a * c;
-  if (disc < 0) return null;
-  const sq = Math.sqrt(disc);
-  const tNear = (-b - sq) / (2 * a);
-  const tFar = (-b + sq) / (2 * a);
-
-  // Try the near intersection first, then the far (origin inside the cylinder).
-  for (const t of [tNear, tFar]) {
-    if (t < 0) continue;
-    const hy = oy + dir.y * t;
-    if (hy >= y0 && hy <= y1) return t;
+  // Top/bottom caps. This is what makes shots from above or below reliable.
+  if (Math.abs(dir.y) >= EPS) {
+    for (const capY of [minY, maxY]) {
+      const t = (capY - oy) / dir.y;
+      if (t < -EPS) continue;
+      const hx = ox2 + dir.x * t;
+      const hz = oz2 + dir.z * t;
+      if (hx * hx + hz * hz <= r2 + EPS) consider(t);
+    }
   }
-  return null;
+
+  return best;
 }
 
 function normalize(dx: number, dy: number, dz: number) {

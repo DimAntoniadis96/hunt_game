@@ -56,13 +56,10 @@ import { Decoy, GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
 import { selectMeleeTarget, type MeleeTarget } from "./melee.js";
+import { PLAYER_HIT_HEIGHT, playerHitCylinder, propModelHitCylinder } from "./targetGeometry.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
 const COPY_RANGE = 6.0;
-/** Enlarge hit cylinders slightly so box-corner shots register fairly. */
-const HIT_RADIUS_BUFFER = 1.15;
-/** Hit-cylinder height for an un-disguised prop (the humanoid body). */
-const PLAYER_HIT_HEIGHT = 1.8;
 
 interface JoinOptions {
   name?: string;
@@ -370,16 +367,13 @@ export class GameRoom extends Room<{ state: GameState }> {
     // (baseY = feet), so a prop standing on furniture or mid-jump is hittable.
     const playerTargets = this.propPlayerTargets(player);
     const propTargets: CylinderTarget[] = map.props
-      .map((spawn) => {
-        const model = PROP_MODELS[spawn.modelKey];
-        return model ? { id: spawn.id, x: spawn.x, z: spawn.z, baseY: 0, radius: model.radius, height: model.height } : null;
-      })
+      .map((spawn) => propModelHitCylinder(spawn.id, spawn.modelKey, spawn.x, spawn.y, spawn.z))
       .filter((t): t is CylinderTarget => t !== null);
     // Decoys are shootable furniture: shooting one is a "wrong" shot (penalty)
     // and the decoy is destroyed — hunters can clear bait, but it costs them.
     this.state.decoys.forEach((dd) => {
-      const model = PROP_MODELS[dd.modelKey];
-      if (model) propTargets.push({ id: `decoy:${dd.id}`, x: dd.x, z: dd.z, baseY: dd.y, radius: model.radius, height: model.height });
+      const target = propModelHitCylinder(`decoy:${dd.id}`, dd.modelKey, dd.x, dd.y, dd.z);
+      if (target) propTargets.push(target);
     });
 
     const res = resolveShot({ ox: p.ox, oy: p.oy, oz: p.oz, dx: p.dx, dy: p.dy, dz: p.dz }, playerTargets, propTargets, WEAPON_RANGE, map.occluders);
@@ -471,10 +465,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     const targets: CylinderTarget[] = [];
     this.state.players.forEach((other) => {
       if (other === shooter || !other.alive || other.team !== Team.Props) return;
-      const model = PROP_MODELS[other.propModel];
-      const radius = (model ? model.radius : PLAYER_RADIUS) * HIT_RADIUS_BUFFER;
-      const height = model ? model.height : PLAYER_HIT_HEIGHT;
-      targets.push({ id: other.id, x: other.x, z: other.z, baseY: other.y, radius, height });
+      targets.push(playerHitCylinder(other.id, other.x, other.y, other.z, other.propModel));
     });
     return targets;
   }

@@ -30,7 +30,7 @@ import type { Room } from "colyseus.js";
 import type { NetworkClient } from "../net/NetworkClient";
 import type { AudioManager } from "../audio/AudioManager";
 import type { HUD } from "../ui/HUD";
-import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual } from "./mapBuilder";
+import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual, setPropVisualCollisions } from "./mapBuilder";
 import { InputController, type CameraMode } from "./InputController";
 
 const COPY_RANGE = 6.0;
@@ -395,7 +395,8 @@ export class GameScene {
         // prop just like a real object. A disguised prop is fully solid; an
         // undisguised character only blocks via its torso (so we don't create
         // dozens of tiny colliders for eyes/hat/weapons).
-        node.getChildMeshes().forEach((m) => (m.checkCollisions = p.propModel ? true : m.name.includes("_torso")));
+        if (p.propModel) setPropVisualCollisions(node, true);
+        else node.getChildMeshes().forEach((m) => (m.checkCollisions = m.name.includes("_torso")));
         v = { node, key: desiredKey };
         this.visuals.set(id, v);
       }
@@ -421,6 +422,7 @@ export class GameScene {
         const node = createPropVisual(this.scene, d.modelKey, `decoy_${d.id}`);
         node.position.set(d.x, d.y, d.z);
         node.rotation.y = d.ry;
+        setPropVisualCollisions(node, true);
         // Faint shimmer so the owner can tell their own decoys apart (subtle).
         this.decoyNodes.set(d.id, node);
       }
