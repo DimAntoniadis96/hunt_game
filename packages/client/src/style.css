@@ -394,6 +394,277 @@ button:disabled {
   opacity: 1;
 }
 
+/* ---- Hunter prep blind screen ------------------------------------------ *
+ * Covers the 3D map only for hunters during Prep, so they cannot scout hiding
+ * spots while props are setting up. */
+.hunter-wait-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(18px, 4vw, 34px);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  background: #061019;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+.hunter-wait-screen.show {
+  opacity: 1;
+  visibility: visible;
+}
+.hunter-wait-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 7px),
+    linear-gradient(90deg, rgba(55, 217, 160, 0.08), transparent 28%, transparent 72%, rgba(255, 112, 67, 0.08));
+  z-index: 1;
+  opacity: 0.56;
+}
+.hunter-wait-screen::after {
+  content: "";
+  position: absolute;
+  inset: clamp(10px, 2.2vw, 22px);
+  z-index: 2;
+  border: 1px solid rgba(82, 255, 190, 0.24);
+  border-radius: 8px;
+  box-shadow: inset 0 0 46px rgba(55, 217, 160, 0.12), 0 0 32px rgba(255, 112, 67, 0.08);
+}
+.hunter-wait-map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 72%, rgba(102, 205, 77, 0.7) 0 9%, transparent 10%),
+    radial-gradient(circle at 86% 28%, rgba(102, 205, 77, 0.55) 0 7%, transparent 8%),
+    linear-gradient(135deg, rgba(255, 235, 148, 0.14) 0 18%, transparent 19%),
+    linear-gradient(180deg, #79d95c, #3d9f42 62%, #2a7138);
+  filter: saturate(0.85) brightness(0.76);
+}
+.hunter-wait-map::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 54px, rgba(8, 60, 32, 0.18) 55px 57px),
+    repeating-linear-gradient(0deg, transparent 0 48px, rgba(8, 60, 32, 0.16) 49px 51px);
+  opacity: 0.35;
+  transform: rotate(-4deg);
+}
+.hunter-wait-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 48%, transparent 0 18%, rgba(5, 10, 18, 0.2) 44%, rgba(5, 10, 18, 0.76) 100%),
+    linear-gradient(180deg, rgba(5, 9, 16, 0.3), rgba(5, 9, 16, 0.64));
+}
+.hunter-wait-map span {
+  position: absolute;
+  display: block;
+  border-radius: 5px;
+  box-shadow: 0 12px 28px rgba(2, 8, 12, 0.18);
+}
+.map-house {
+  left: 57%;
+  top: 18%;
+  width: 31%;
+  height: 22%;
+  background: #efd997;
+  transform: rotate(-4deg);
+}
+.map-roof {
+  left: 55%;
+  top: 14%;
+  width: 35%;
+  height: 19%;
+  background: #ff7454;
+  clip-path: polygon(50% 0, 100% 85%, 0 85%);
+  opacity: 0.95;
+  transform: rotate(-4deg);
+}
+.map-patio {
+  left: 48%;
+  top: 43%;
+  width: 31%;
+  height: 12%;
+  background:
+    repeating-linear-gradient(90deg, rgba(96, 104, 112, 0.35) 0 2px, transparent 2px 50px),
+    repeating-linear-gradient(0deg, rgba(96, 104, 112, 0.32) 0 2px, transparent 2px 42px),
+    #dfe5e6;
+  transform: rotate(-4deg);
+}
+.map-path {
+  height: 10%;
+  background: #e5e9e8;
+  transform: rotate(-4deg);
+}
+.map-path-a {
+  left: 6%;
+  top: 58%;
+  width: 54%;
+}
+.map-path-b {
+  left: 54%;
+  top: 54%;
+  width: 11%;
+  height: 34%;
+}
+.map-hedge {
+  background:
+    linear-gradient(90deg, rgba(18, 83, 30, 0.26), transparent 50%, rgba(18, 83, 30, 0.2)),
+    #36a936;
+}
+.map-hedge-a {
+  left: 9%;
+  top: 35%;
+  width: 31%;
+  height: 7%;
+  transform: rotate(-8deg);
+}
+.map-hedge-b {
+  left: 64%;
+  top: 58%;
+  width: 28%;
+  height: 8%;
+  transform: rotate(3deg);
+}
+.map-hedge-c {
+  left: 21%;
+  top: 72%;
+  width: 26%;
+  height: 7%;
+  transform: rotate(7deg);
+}
+.map-pool {
+  left: 82%;
+  top: 45%;
+  width: 10%;
+  height: 8%;
+  background: linear-gradient(135deg, #48d6ff, #238add);
+}
+.map-tree {
+  width: 11%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(210, 255, 164, 0.55), transparent 22%),
+    radial-gradient(circle at 68% 66%, rgba(7, 88, 32, 0.22), transparent 32%),
+    #38b43c;
+}
+.map-tree-a {
+  left: 16%;
+  top: 13%;
+}
+.map-tree-b {
+  left: 36%;
+  top: 52%;
+  width: 14%;
+}
+.map-tree-c {
+  left: 87%;
+  top: 67%;
+  width: 12%;
+}
+.hunter-wait-panel {
+  position: relative;
+  z-index: 3;
+  width: min(900px, 88vw);
+  text-align: center;
+  padding: clamp(22px, 4.8vh, 42px) clamp(18px, 4.5vw, 56px);
+  border: 1px solid rgba(82, 255, 190, 0.52);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(82, 255, 190, 0.12), transparent 24%, transparent 74%, rgba(255, 112, 67, 0.12)),
+    linear-gradient(180deg, rgba(7, 14, 22, 0.93), rgba(3, 8, 14, 0.97));
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.6), inset 0 0 34px rgba(55, 217, 160, 0.11), 0 0 0 6px rgba(5, 14, 22, 0.56);
+}
+.hunter-wait-panel::before,
+.hunter-wait-panel::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--accent), rgba(55, 217, 160, 0.14), var(--accent-2));
+  box-shadow: 0 0 18px rgba(55, 217, 160, 0.38);
+}
+.hunter-wait-panel::before {
+  left: 14px;
+}
+.hunter-wait-panel::after {
+  right: 14px;
+}
+.hunter-wait-eyebrow,
+.hunter-wait-url,
+.hunter-wait-credit,
+.hunter-wait-countdown {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  letter-spacing: 0;
+}
+.hunter-wait-eyebrow {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding: 7px 14px;
+  color: #04120d;
+  background: linear-gradient(90deg, var(--accent), #8dffcf);
+  border-radius: 4px;
+  font-size: clamp(11px, 1.6vw, 13px);
+  font-weight: 900;
+  box-shadow: 0 0 24px rgba(55, 217, 160, 0.28);
+}
+.hunter-wait-countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: clamp(10px, 2vw, 16px);
+  margin: 0 auto clamp(14px, 3vh, 24px);
+  color: #f4fbff;
+  line-height: 0.9;
+  text-shadow: 0 0 26px rgba(55, 217, 160, 0.36);
+}
+.hunter-wait-countdown span {
+  font-size: clamp(58px, 13vw, 132px);
+  font-weight: 900;
+}
+.hunter-wait-countdown small {
+  color: rgba(219, 238, 248, 0.82);
+  font-size: clamp(13px, 2.2vw, 22px);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.hunter-wait-copy {
+  max-width: 720px;
+  margin: 0 auto 10px;
+  color: #d9e6f1;
+  font-size: clamp(17px, 2.8vw, 30px);
+  font-weight: 800;
+  line-height: 1.18;
+  text-wrap: balance;
+}
+.hunter-wait-url {
+  margin-top: 8px;
+  color: var(--accent);
+  font-size: clamp(25px, 5.2vw, 54px);
+  font-weight: 900;
+  line-height: 1.05;
+  text-shadow: 0 0 18px rgba(55, 217, 160, 0.5), 0 0 44px rgba(55, 217, 160, 0.18);
+  overflow-wrap: anywhere;
+}
+.hunter-wait-credit {
+  margin-top: clamp(18px, 3.6vh, 28px);
+  color: rgba(255, 236, 220, 0.9);
+  font-size: clamp(12px, 1.9vw, 18px);
+  font-weight: 800;
+}
+
 /* ---- Final-seconds countdown (shared: last 5s of Prep, last 3s of Hunt) ---- *
  * A gamified but tasteful countdown: a gradient number with an accent glow, an
  * expanding ring that fires each second, and a soft accent vignette at the
@@ -623,6 +894,7 @@ button:disabled {
 .scoreboard {
   position: absolute;
   inset: 0;
+  z-index: 12;
   display: none;
   align-items: center;
   justify-content: center;
@@ -664,6 +936,7 @@ th {
 .overlay {
   position: absolute;
   inset: 0;
+  z-index: 16;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -677,6 +950,55 @@ th {
   border-radius: 14px;
   padding: 26px 32px;
   max-width: 440px;
+}
+.overlay .play-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 14px;
+  align-items: center;
+  width: min(620px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(10, 16, 24, 0.9);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  text-align: left;
+}
+.overlay .play-prompt h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.overlay .play-prompt .hint {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.25;
+}
+.overlay .play-prompt button {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: auto;
+  margin: 0;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .overlay .play-prompt {
+    bottom: 10px;
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+    text-align: center;
+  }
+  .overlay .play-prompt .hint {
+    display: none;
+  }
+  .overlay .play-prompt button {
+    grid-column: auto;
+    grid-row: auto;
+    width: 100%;
+  }
 }
 .game-menu h2 {
   margin: 0 0 18px;

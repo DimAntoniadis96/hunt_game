@@ -157,7 +157,7 @@ export class Screens {
   /** "Click to play" — the required user gesture for pointer lock + audio. */
   clickToPlay(onClick: () => void) {
     this.overlay.classList.remove("hidden");
-    this.overlay.innerHTML = `<div class="msg"><h2>Click to play</h2><p class="hint">Locks your mouse for aiming and enables sound.<br/>Press <kbd>Esc</kbd> to release the mouse.</p><button style="margin-top:14px">Enter game</button></div>`;
+    this.overlay.innerHTML = `<div class="msg play-prompt"><h2>Click to play</h2><p class="hint">Locks your mouse for aiming and enables sound.<br/>Press <kbd>Esc</kbd> to release the mouse.</p><button>Enter game</button></div>`;
     const go = () => {
       this.hideOverlay();
       onClick();

@@ -120,6 +120,16 @@ check(["HIDE", "HUNT"].includes(phase1 || ""), `P1 phase = ${phase1}`);
 check(/PROP|HUNTER/.test(team1 || ""), `P1 assigned team = ${team1}`);
 check(/PROP|HUNTER/.test(team2 || ""), `P2 assigned team = ${team2}`);
 check(team1 !== team2, `players on opposite teams (P1=${team1}, P2=${team2})`);
+const hunterPage = team1 === "HUNTER" ? p1 : p2;
+const propPage = team1 === "PROP" ? p1 : p2;
+const hunterWaitVisible = await hunterPage.isVisible('[data-r="hunterwait"]');
+const propWaitVisible = await propPage.isVisible('[data-r="hunterwait"]');
+const hunterWaitText = await hunterPage.textContent('[data-r="hunterwait"]');
+const hunterWaitCountdown = (await hunterPage.textContent('[data-r="hunterwaittimer"]'))?.trim();
+check(hunterWaitVisible, "hunter prep blind screen is visible");
+check(!propWaitVisible, "prop prep blind screen is hidden");
+check(/^\d+$/.test(hunterWaitCountdown || ""), `hunter prep blind screen shows countdown (${hunterWaitCountdown})`);
+check(hunterWaitText?.includes("www.study-saga.com") && hunterWaitText?.includes("Made by D_anto from Zed Organization"), "hunter prep blind screen has study-saga and credit text");
 
 await p1.keyboard.press("Escape");
 await p1.waitForSelector(".game-menu", { timeout: 5000 });

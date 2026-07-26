@@ -48,6 +48,32 @@ export class HUD {
       </div>
       <div class="killfeed" data-r="killfeed"></div>
       <div class="banner" data-r="banner"></div>
+      <div class="hunter-wait-screen" data-r="hunterwait" aria-hidden="true">
+        <div class="hunter-wait-map" aria-hidden="true">
+          <span class="map-house"></span>
+          <span class="map-roof"></span>
+          <span class="map-patio"></span>
+          <span class="map-hedge map-hedge-a"></span>
+          <span class="map-hedge map-hedge-b"></span>
+          <span class="map-hedge map-hedge-c"></span>
+          <span class="map-path map-path-a"></span>
+          <span class="map-path map-path-b"></span>
+          <span class="map-pool"></span>
+          <span class="map-tree map-tree-a"></span>
+          <span class="map-tree map-tree-b"></span>
+          <span class="map-tree map-tree-c"></span>
+        </div>
+        <div class="hunter-wait-panel">
+          <div class="hunter-wait-eyebrow">SEEKER HOLD</div>
+          <div class="hunter-wait-countdown" aria-label="Hunt begins in">
+            <span data-r="hunterwaittimer">--</span>
+            <small data-r="hunterwaitunit">seconds</small>
+          </div>
+          <div class="hunter-wait-copy">If you want to study in a gamified way, try our site</div>
+          <div class="hunter-wait-url">www.study-saga.com</div>
+          <div class="hunter-wait-credit">Made by D_anto from Zed Organization</div>
+        </div>
+      </div>
       <div class="finale" data-r="finale">
         <div class="fn-num" data-r="finalenum">5</div>
         <div class="fn-label" data-r="finalelabel"></div>
@@ -113,6 +139,12 @@ export class HUD {
     this.refs.lifelabel.textContent = me?.alive === false ? "Eliminated — spectating" : "Health";
 
     const isHunter = me?.team === Team.Hunters;
+    const hunterWaiting = phase === Phase.Prep && isHunter && me?.alive !== false;
+    this.refs.hunterwait.classList.toggle("show", hunterWaiting);
+    this.refs.hunterwait.setAttribute("aria-hidden", hunterWaiting ? "false" : "true");
+    const waitSeconds = this.secondsLeft(state.phaseEndsAt);
+    this.refs.hunterwaittimer.textContent = String(waitSeconds);
+    this.refs.hunterwaitunit.textContent = waitSeconds === 1 ? "second" : "seconds";
     this.refs.weapon.classList.toggle("hidden", !isHunter);
     this.refs.crosshair.classList.toggle("hidden", !isHunter || !me?.alive);
     if (isHunter && me) {
