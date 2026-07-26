@@ -488,22 +488,29 @@ export class GameScene {
     // resolved on the E press). Keeps the render loop cheap and stops the label
     // flickering the name of every object you walk past.
     const disguised = !!me.propModel;
+    const locked = this.input.isRotationLocked();
     const now = performance.now();
     const segs: string[] = [];
 
+    // The R segment doubles as the lock indicator: neutral "lock" when free, and
+    // a bold red "LOCKED" (press R to move) while frozen in place.
+    const lockSeg = locked
+      ? `<kbd class="key-locked">R</kbd> <span class="locked-label">LOCKED</span> <span class="locked-hint">— press R to move</span>`
+      : `<kbd>R</kbd> lock`;
+
     if (!disguised) {
       segs.push(`<kbd class="key-primary">E</kbd> disguise`);
-      segs.push(`<kbd>R</kbd> lock`);
+      segs.push(lockSeg);
     } else {
       const changeCd = Math.ceil(Math.max(0, this.transformReadyAt - now) / 1000);
       segs.push(changeCd > 0 ? `<kbd>E</kbd> change <span class="cd">${changeCd}s</span>` : `<kbd class="key-primary">E</kbd> change`);
-      segs.push(`<kbd>R</kbd> lock`);
+      segs.push(lockSeg);
       const decoyCd = Math.ceil(Math.max(0, this.decoyReadyAt - now) / 1000);
       segs.push(decoyCd > 0 ? `<kbd>F</kbd> decoy <span class="cd">${decoyCd}s</span>` : `<kbd>F</kbd> decoy`);
       segs.push(`<kbd>T</kbd> taunt`);
     }
 
-    this.hud.prompt(segs.join(`<span class="sep">·</span>`));
+    this.hud.prompt(segs.join(`<span class="sep">·</span>`), locked);
   }
 
   private nearestProp(): { id: string; modelKey: string; d: number } | null {

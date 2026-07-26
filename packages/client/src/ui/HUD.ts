@@ -146,14 +146,17 @@ export class HUD {
     this.bannerTimer = window.setTimeout(() => b.classList.remove("show"), ms);
   }
 
-  prompt(html: string | null) {
+  prompt(html: string | null, locked = false) {
     const p = this.refs.prompt;
     if (!html) {
       p.classList.remove("show");
+      p.classList.remove("locked");
       return;
     }
     p.innerHTML = html;
     p.classList.add("show");
+    // Red, pulsing treatment while the player is frozen-in-place (R lock).
+    p.classList.toggle("locked", locked);
   }
 
   scoreboard(show: boolean, state?: StateLike) {

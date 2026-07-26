@@ -452,6 +452,39 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- Locked (frozen-in-place) state ------------------------------------- *
+ * When a prop presses R to hold its pose it cannot move. Make that state
+ * unmistakable: the R key goes red, the label reads LOCKED, and the whole
+ * prompt bar gets a pulsing red glow so the player is sure they're locked. */
+.prompt.locked {
+  border-color: rgba(255, 84, 84, 0.8);
+  background: linear-gradient(180deg, rgba(52, 20, 22, 0.92), rgba(30, 12, 14, 0.94));
+  animation: lockPulse 1.15s ease-in-out infinite;
+}
+@keyframes lockPulse {
+  0%,
+  100% {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 70, 70, 0.3), 0 0 14px rgba(255, 60, 60, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 95, 95, 0.6), 0 0 26px rgba(255, 70, 70, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+}
+.prompt kbd.key-locked {
+  background: linear-gradient(180deg, #ff5a5a, #c62a2a);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #1a0505;
+}
+.prompt .locked-label {
+  color: #ff8f8f;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+}
+.prompt .locked-hint {
+  color: rgba(255, 180, 180, 0.75);
+  font-weight: 500;
+}
+
 .ping {
   position: absolute;
   top: 14px;
