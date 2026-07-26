@@ -35,6 +35,7 @@ export class HUD {
         <span class="sub" data-r="sub"></span>
       </div>
       <div class="ping" data-r="ping">ping -- ms</div>
+      <div class="fps hidden" data-r="fps">fps --</div>
       <div class="crosshair hidden" data-r="crosshair"><i class="dot"></i></div>
       <div class="hud-bottom-left">
         <div data-r="teamlabel" style="font-weight:700">—</div>
@@ -141,6 +142,11 @@ export class HUD {
     entry.textContent = text;
     this.refs.killfeed.appendChild(entry);
     window.setTimeout(() => entry.remove(), 6000);
+  }
+
+  fps(show: boolean, value: number) {
+    this.refs.fps.classList.toggle("hidden", !show);
+    if (show) this.refs.fps.textContent = `fps ${Math.round(value)}`;
   }
 
   /**

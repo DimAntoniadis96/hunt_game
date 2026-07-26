@@ -73,6 +73,10 @@ const SAMPLE_NAMES: Sfx[] = [
   // (whistle1..whistle5) are loaded separately; the synth is the fallback.
 ];
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
 export class AudioManager {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -91,6 +95,8 @@ export class AudioManager {
   private currentMusic: Music | null = null;
   private musicUnlocked = false;
   private musicFadeTimers = new Map<Music, ReturnType<typeof setInterval>>();
+  private masterVolume = 0.8;
+  private sfxVolume = 0.85;
   private musicVolume = MUSIC_VOLUME;
 
   /** Must be called from a user-gesture handler (click/keydown). */
@@ -118,7 +124,7 @@ export class AudioManager {
       comp.release.value = 0.18;
 
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.4;
+      this.master.gain.value = this.effectiveSfxVolume();
 
       this.bus.connect(lp).connect(comp).connect(this.master).connect(this.ctx.destination);
 
@@ -128,18 +134,49 @@ export class AudioManager {
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
 
+  setMasterVolume(v: number) {
+    this.masterVolume = clamp01(v);
+    this.applyOutputVolumes();
+  }
+
+  setSfxVolume(v: number) {
+    this.sfxVolume = clamp01(v);
+    this.applyOutputVolumes();
+  }
+
   setVolume(v: number) {
-    if (this.master) this.master.gain.value = Math.max(0, Math.min(1, v));
+    this.setSfxVolume(v);
   }
 
   // ---- music ---------------------------------------------------------------
 
   /** Overall music level (0..1). Applies to whatever track is currently playing. */
   setMusicVolume(v: number) {
-    this.musicVolume = Math.max(0, Math.min(1, v));
+    this.musicVolume = clamp01(v);
     if (this.currentMusic) {
       const el = this.musicEls.get(this.currentMusic);
-      if (el) el.volume = this.musicVolume;
+      if (el) {
+        const existing = this.musicFadeTimers.get(this.currentMusic);
+        if (existing) clearInterval(existing);
+        this.musicFadeTimers.delete(this.currentMusic);
+        el.volume = this.effectiveMusicVolume();
+      }
+    }
+  }
+
+  private effectiveSfxVolume(): number {
+    return this.masterVolume * this.sfxVolume;
+  }
+
+  private effectiveMusicVolume(): number {
+    return this.masterVolume * this.musicVolume;
+  }
+
+  private applyOutputVolumes() {
+    if (this.master) this.master.gain.value = this.effectiveSfxVolume();
+    if (this.currentMusic) {
+      const el = this.musicEls.get(this.currentMusic);
+      if (el) el.volume = this.effectiveMusicVolume();
     }
   }
 
@@ -167,7 +204,8 @@ export class AudioManager {
   /**
    * Switch the looping background track. Pass `null` to fade everything out.
    * Crossfades: the outgoing track fades down while the incoming fades up to
-   * `musicVolume`. Calling it with the already-current track is a no-op.
+   * the effective master × music level. Calling it with the already-current
+   * track is a no-op.
    */
   setMusic(name: Music | null) {
     if (!this.enabled) return;
@@ -194,7 +232,7 @@ export class AudioManager {
     el.volume = 0;
     const p = el.play();
     if (p && typeof p.catch === "function") p.catch(() => { /* autoplay blocked until a gesture */ });
-    this.fadeTo(name, el, this.musicVolume);
+    this.fadeTo(name, el, this.effectiveMusicVolume());
   }
 
   /** Stop all music immediately-ish (short fade). */

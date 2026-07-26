@@ -30,6 +30,8 @@ import type { Room } from "colyseus.js";
 import type { NetworkClient } from "../net/NetworkClient";
 import type { AudioManager } from "../audio/AudioManager";
 import type { HUD } from "../ui/HUD";
+import type { GameSettings } from "../settings/GameSettings";
+import { renderScaleForQuality } from "../settings/GameSettings";
 import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual, setPropVisualCollisions } from "./mapBuilder";
 import { InputController, type CameraMode } from "./InputController";
 
@@ -59,6 +61,8 @@ export class GameScene {
   private scoreboardOpen = false;
   private mapId: string;
   private currentMode: CameraMode = "fp";
+  private menuOpen = false;
+  private settings: GameSettings;
 
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
@@ -75,12 +79,13 @@ export class GameScene {
 
   onLockLost?: () => void;
 
-  constructor(canvas: HTMLCanvasElement, net: NetworkClient, audio: AudioManager, hud: HUD) {
+  constructor(canvas: HTMLCanvasElement, net: NetworkClient, audio: AudioManager, hud: HUD, settings: GameSettings) {
     this.canvas = canvas;
     this.net = net;
     this.audio = audio;
     this.hud = hud;
     this.room = net.room!;
+    this.settings = { ...settings };
     this.mapId = (this.room.state as any).mapId || DEFAULT_MAP_ID;
 
     this.engine = new Engine(canvas, true, { preserveDrawingBuffer: false, stencil: false });
@@ -98,6 +103,7 @@ export class GameScene {
     this.input = new InputController(this.scene, canvas, spawn);
     this.input.setBounds(map.bounds);
     this.input.onJump = () => this.audio.play("jump");
+    this.applySettings(this.settings);
 
     this.buildGunViewmodel();
     this.buildAxeViewmodel();
@@ -115,12 +121,36 @@ export class GameScene {
   }
 
   requestLock() {
+    this.menuOpen = false;
     this.input.requestLock();
+  }
+
+  releaseLock() {
+    this.input.releaseLock();
+  }
+
+  setMenuOpen(open: boolean) {
+    this.menuOpen = open;
+    if (open) {
+      this.scoreboardOpen = false;
+      this.hud.scoreboard(false);
+      this.input.releaseLock();
+    }
+  }
+
+  applySettings(settings: GameSettings) {
+    this.settings = { ...settings };
+    this.input.setSensitivity(settings.mouseSensitivity);
+    this.input.setInvertMouseY(settings.invertMouseY);
+    this.input.setFov(settings.fov);
+    this.input.setThirdPersonDistance(settings.cameraDistance);
+    this.engine.setHardwareScalingLevel(renderScaleForQuality(settings.renderQuality));
+    document.body.classList.toggle("reduce-motion", settings.reduceMotion);
   }
 
   private onResize = () => this.engine.resize();
   private onLockChange = () => {
-    if (document.pointerLockElement !== this.canvas) this.onLockLost?.();
+    if (document.pointerLockElement !== this.canvas && !this.menuOpen) this.onLockLost?.();
   };
 
   // ---- gun viewmodel (hunter, first-person) -------------------------------
@@ -344,6 +374,7 @@ export class GameScene {
     this.updatePrompts(me, phase);
     this.updateFinale(me, phase, state);
     this.hud.update(state, me, this.net.ping);
+    this.hud.fps(this.settings.showFps, this.engine.getFps());
     this.scene.render();
   }
 
@@ -575,6 +606,7 @@ export class GameScene {
   // ---- input actions ------------------------------------------------------
 
   private onPointerDown = (e: PointerEvent) => {
+    if (this.menuOpen) return;
     if (e.button !== 0) return;
     if (!this.input.locked) {
       this.input.requestLock();
@@ -584,6 +616,7 @@ export class GameScene {
   };
 
   private onKeyDown = (e: KeyboardEvent) => {
+    if (this.menuOpen || e.defaultPrevented) return;
     const me = this.me();
     if (!me) return;
     switch (e.code) {
@@ -628,6 +661,7 @@ export class GameScene {
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
+    if (this.menuOpen || e.defaultPrevented) return;
     if (e.code === "Tab") {
       this.scoreboardOpen = false;
       this.hud.scoreboard(false);

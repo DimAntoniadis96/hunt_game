@@ -29,6 +29,7 @@ export class Screens {
   onConnect?: (mode: ConnectMode) => void;
   onReady?: (ready: boolean) => void;
   onLeave?: () => void;
+  onSettings?: () => void;
   onPlayClick?: () => void; // used to unlock audio + request pointer lock
 
   constructor(root: HTMLElement) {
@@ -41,10 +42,11 @@ export class Screens {
         <div class="brand"><h1>Mimic<span class="dot">Hunt</span></h1></div>
         <p class="tagline">Hide as furniture. Or hunt the impostors. A browser prop-hunt.</p>
         <label for="name">Display name</label>
-        <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. CrateGoblin" />
+        <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. NightCrate" />
         <button class="mt" data-a="public" style="width:100%">Quick Play (public)</button>
         <div class="row mt">
           <button class="secondary" data-a="create">Create private room</button>
+          <button class="ghost" data-a="settings">Settings</button>
         </div>
         <label>Join with a code</label>
         <div class="row">
@@ -69,6 +71,7 @@ export class Screens {
         <ul class="lobby-players" data-r="players"></ul>
         <div class="row mt">
           <button data-a="ready" data-ready="0">Ready up</button>
+          <button class="secondary" data-a="settings">Settings</button>
           <button class="ghost" data-a="leave" style="flex:0 0 90px">Leave</button>
         </div>
         <p class="hint" data-r="lobbyhint">Match starts when everyone is ready (min ${MIN_PLAYERS_TO_START} players).</p>
@@ -110,6 +113,7 @@ export class Screens {
       if (!code) return this.error("Enter a room code to join.");
       if (n) this.onConnect?.({ kind: "join", name: n, code });
     });
+    this.menu.querySelector('[data-a="settings"]')!.addEventListener("click", () => this.onSettings?.());
 
     const readyBtn = this.lobby.querySelector<HTMLButtonElement>('[data-a="ready"]')!;
     readyBtn.addEventListener("click", () => {
@@ -119,6 +123,7 @@ export class Screens {
       readyBtn.className = next ? "secondary" : "";
       this.onReady?.(next === 1);
     });
+    this.lobby.querySelector('[data-a="settings"]')!.addEventListener("click", () => this.onSettings?.());
     this.lobby.querySelector('[data-a="leave"]')!.addEventListener("click", () => this.onLeave?.());
   }
 
@@ -158,6 +163,22 @@ export class Screens {
       onClick();
     };
     this.overlay.querySelector("button")!.addEventListener("click", go);
+  }
+
+  gameMenu(onResume: () => void, onSettings: () => void, onLeave: () => void) {
+    this.overlay.classList.remove("hidden");
+    this.overlay.innerHTML = `
+      <div class="msg game-menu">
+        <h2>Game Menu</h2>
+        <div class="menu-actions">
+          <button data-a="resume">Resume</button>
+          <button class="secondary" data-a="settings">Settings</button>
+          <button class="ghost" data-a="leave">Leave match</button>
+        </div>
+      </div>`;
+    this.overlay.querySelector('[data-a="resume"]')!.addEventListener("click", onResume);
+    this.overlay.querySelector('[data-a="settings"]')!.addEventListener("click", onSettings);
+    this.overlay.querySelector('[data-a="leave"]')!.addEventListener("click", onLeave);
   }
 
   showLobby(code: string, isPrivate: boolean) {

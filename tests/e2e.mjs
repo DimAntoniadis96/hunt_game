@@ -47,6 +47,27 @@ const check = (cond, label) => {
 // --- P1 creates a private room ---
 await p1.goto(URL);
 await p1.waitForSelector("#name", { timeout: 10000 });
+await p1.evaluate(() => localStorage.removeItem("mimic:settings"));
+await p1.click('[data-a="settings"]');
+await p1.waitForSelector(".settings-screen:not(.hidden)", { timeout: 5000 });
+await p1.$eval('input[data-s="masterVolume"]', (el) => {
+  const input = el;
+  input.value = "55";
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+});
+let storedSettings = await p1.evaluate(() => JSON.parse(localStorage.getItem("mimic:settings") || "{}"));
+check(Math.abs(storedSettings.masterVolume - 0.55) < 0.01, "settings master volume slider persists");
+await p1.click('button[data-tab="controls"]');
+await p1.click('input[data-s="invertMouseY"]');
+storedSettings = await p1.evaluate(() => JSON.parse(localStorage.getItem("mimic:settings") || "{}"));
+check(storedSettings.invertMouseY === true, "settings invert mouse toggle persists");
+await p1.click('button[data-tab="video"]');
+await p1.selectOption('select[data-s="renderQuality"]', "medium");
+storedSettings = await p1.evaluate(() => JSON.parse(localStorage.getItem("mimic:settings") || "{}"));
+check(storedSettings.renderQuality === "medium", "settings render quality persists");
+await p1.click('[data-a="settings-done"]');
+await p1.waitForSelector(".settings-screen", { state: "hidden", timeout: 5000 });
+
 await p1.fill("#name", "Alice");
 await p1.click('[data-a="create"]');
 
@@ -99,6 +120,17 @@ check(["HIDE", "HUNT"].includes(phase1 || ""), `P1 phase = ${phase1}`);
 check(/PROP|HUNTER/.test(team1 || ""), `P1 assigned team = ${team1}`);
 check(/PROP|HUNTER/.test(team2 || ""), `P2 assigned team = ${team2}`);
 check(team1 !== team2, `players on opposite teams (P1=${team1}, P2=${team2})`);
+
+await p1.keyboard.press("Escape");
+await p1.waitForSelector(".game-menu", { timeout: 5000 });
+check(await p1.isVisible(".game-menu"), "Escape opens the in-game menu");
+await p1.click('.game-menu [data-a="settings"]');
+await p1.waitForSelector(".settings-screen:not(.hidden)", { timeout: 5000 });
+const contextText = await p1.textContent('[data-r="settings-context"]');
+check(contextText?.trim() === "Game menu", "game menu opens settings in game context");
+await p1.click('[data-a="settings-done"]');
+await p1.waitForSelector(".game-menu", { timeout: 5000 });
+await p1.click('.game-menu [data-a="resume"]');
 
 // --- confirm the 3D canvas actually has a live WebGL context / is drawing ---
 const canvasOk = await p1.evaluate(() => {

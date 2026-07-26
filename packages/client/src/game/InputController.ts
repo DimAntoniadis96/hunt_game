@@ -40,6 +40,7 @@ export class InputController {
   /** Hard play-area clamp — a belt-and-suspenders guard against clipping the fence. */
   private bounds: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private sensitivity = 0.0022;
+  private invertMouseY = false;
   private mode: CameraMode = "fp";
   private tpDistance = 5.0;
   seq = 0;
@@ -103,7 +104,36 @@ export class InputController {
   }
 
   requestLock() {
-    if (!this.locked) this.canvas.requestPointerLock();
+    if (!this.locked) {
+      try {
+        const p = this.canvas.requestPointerLock();
+        if (p && typeof p.catch === "function") p.catch(() => { /* pointer lock can be denied by the browser */ });
+      } catch {
+        /* pointer lock can be denied by the browser */
+      }
+    }
+  }
+
+  releaseLock() {
+    if (this.locked) document.exitPointerLock();
+    this.keys.clear();
+  }
+
+  setSensitivity(v: number) {
+    this.sensitivity = Math.max(0.0008, Math.min(0.0045, v));
+  }
+
+  setInvertMouseY(v: boolean) {
+    this.invertMouseY = v;
+  }
+
+  setFov(degrees: number) {
+    this.camera.fov = (Math.max(55, Math.min(90, degrees)) * Math.PI) / 180;
+  }
+
+  setThirdPersonDistance(v: number) {
+    this.tpDistance = Math.max(3.2, Math.min(7, v));
+    this.updateCamera();
   }
 
   setMode(mode: CameraMode) {
@@ -158,7 +188,7 @@ export class InputController {
   private onMouseMove = (e: MouseEvent) => {
     if (!this.locked) return;
     this.yaw += e.movementX * this.sensitivity;
-    this.pitch += e.movementY * this.sensitivity;
+    this.pitch += e.movementY * this.sensitivity * (this.invertMouseY ? -1 : 1);
     const lim = Math.PI / 2 - 0.05;
     this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
   };

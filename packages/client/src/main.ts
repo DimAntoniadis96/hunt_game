@@ -4,6 +4,8 @@ import { NetworkClient, type ConnectMode } from "./net/NetworkClient";
 import { AudioManager } from "./audio/AudioManager";
 import { HUD } from "./ui/HUD";
 import { Screens } from "./ui/Screens";
+import { SettingsMenu } from "./ui/SettingsMenu";
+import { loadSettings, type GameSettings } from "./settings/GameSettings";
 import { GameScene } from "./game/GameScene";
 import { ServerMessage } from "@mimic/shared";
 
@@ -15,11 +17,17 @@ const uiRoot = document.getElementById("ui-root") as HTMLElement;
 const screens = new Screens(uiRoot);
 const hud = new HUD(uiRoot);
 const audio = new AudioManager();
+const settingsMenu = new SettingsMenu(uiRoot, loadSettings());
 
 let net: NetworkClient | null = null;
 let scene: GameScene | null = null;
 let currentPhase: Phase | null = null;
 let joinedPrivate = false;
+let settings: GameSettings = settingsMenu.value;
+let pauseOpen = false;
+let returnToGameMenuAfterSettings = false;
+
+applySettings(settings);
 
 // ---- feature detection ----------------------------------------------------
 
@@ -80,6 +88,22 @@ screens.onReady = (ready) => {
 };
 
 screens.onLeave = () => teardown("You left the match.");
+screens.onSettings = () => openSettings(currentPhase === Phase.Lobby || currentPhase === Phase.Countdown ? "lobby" : "menu");
+
+settingsMenu.onChange = applySettings;
+settingsMenu.onPreviewSfx = () => {
+  audio.unlock();
+  audio.play("ui");
+};
+settingsMenu.onFullscreen = () => {
+  void toggleFullscreen();
+};
+settingsMenu.onClose = (context) => {
+  if (context === "game" && returnToGameMenuAfterSettings && scene) {
+    returnToGameMenuAfterSettings = false;
+    showGameMenu();
+  }
+};
 
 // ---- state / lifecycle ----------------------------------------------------
 
@@ -126,14 +150,13 @@ function enterGame() {
   if (!net || !net.room) return;
   screens.hideLobby();
   screens.hideOverlay();
-  scene = new GameScene(canvas, net, audio, hud);
+  pauseOpen = false;
+  scene = new GameScene(canvas, net, audio, hud, settings);
   scene.onLockLost = () => {
+    if (settingsMenu.open || pauseOpen) return;
     // Only nudge to re-lock while a round is actually in progress.
     if (currentPhase === Phase.Prep || currentPhase === Phase.Hunt || currentPhase === Phase.Countdown) {
-      screens.clickToPlay(() => {
-        audio.unlock();
-        scene?.requestLock();
-      });
+      showGameMenu();
     }
   };
   hud.show();
@@ -144,6 +167,8 @@ function enterGame() {
 }
 
 function exitGame() {
+  pauseOpen = false;
+  returnToGameMenuAfterSettings = false;
   scene?.dispose();
   scene = null;
   hud.hide();
@@ -162,6 +187,75 @@ async function teardown(message: string) {
   screens.showMenu();
   screens.error(message);
 }
+
+function applySettings(next: GameSettings) {
+  settings = { ...next };
+  audio.setMasterVolume(settings.masterVolume);
+  audio.setSfxVolume(settings.sfxVolume);
+  audio.setMusicVolume(settings.musicVolume);
+  document.body.classList.toggle("reduce-motion", settings.reduceMotion);
+  scene?.applySettings(settings);
+}
+
+function openSettings(context: "menu" | "lobby" | "game") {
+  audio.unlock();
+  if (context === "game") {
+    pauseOpen = true;
+    returnToGameMenuAfterSettings = true;
+    scene?.setMenuOpen(true);
+    screens.hideOverlay();
+  }
+  settingsMenu.show(context);
+}
+
+function showGameMenu() {
+  if (!scene) return;
+  pauseOpen = true;
+  scene.setMenuOpen(true);
+  screens.gameMenu(
+    () => resumeGame(),
+    () => openSettings("game"),
+    () => teardown("You left the match."),
+  );
+}
+
+function resumeGame() {
+  if (!scene) return;
+  pauseOpen = false;
+  returnToGameMenuAfterSettings = false;
+  screens.hideOverlay();
+  scene.setMenuOpen(false);
+  audio.unlock();
+  scene.requestLock();
+}
+
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch {
+    audio.play("ui");
+  }
+}
+
+window.addEventListener(
+  "keydown",
+  (e) => {
+    if (e.code !== "Escape") return;
+    if (settingsMenu.open) {
+      e.preventDefault();
+      e.stopPropagation();
+      settingsMenu.hide();
+      return;
+    }
+    if (!scene || !(currentPhase === Phase.Prep || currentPhase === Phase.Hunt || currentPhase === Phase.Countdown)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (pauseOpen) resumeGame();
+    else showGameMenu();
+  },
+  true,
+);
 
 // Keep the canvas crisp on DPR/size changes even before a scene exists.
 window.addEventListener("resize", () => {
