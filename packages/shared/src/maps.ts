@@ -329,7 +329,7 @@ export const BACKYARD: MapDefinition = {
     { id: "b73", modelKey: "tree_stump", x: 12, y: 0, z: 9.5, ry: 0 },
     { id: "b74", modelKey: "tree_stump", x: -8, y: 0, z: 10, ry: 0.6 },
     { id: "b75", modelKey: "birdhouse", x: 9, y: 0, z: 10, ry: 0 },
-    { id: "b76", modelKey: "portrait", x: -6, y: 0, z: 25.2, ry: 0 },
+    { id: "b76", modelKey: "portrait", x: -3.5, y: 0, z: 25.2, ry: 0 },
     { id: "b77", modelKey: "portrait", x: 20, y: 0, z: 25.2, ry: -0.2 },
     { id: "b78", modelKey: "teapot", x: 2, y: 0, z: 22.5, ry: 0 },
     { id: "b79", modelKey: "picnic_basket", x: -5, y: 0, z: -7.2, ry: 0.4 },
