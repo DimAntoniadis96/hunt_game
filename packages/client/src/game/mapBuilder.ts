@@ -5,6 +5,8 @@ import {
   Color4,
   MeshBuilder,
   StandardMaterial,
+  DynamicTexture,
+  Texture,
   Mesh,
   TransformNode,
   HemisphericLight,
@@ -27,6 +29,104 @@ function mat(scene: Scene, hex: string, emissive = 0.16): StandardMaterial {
   matCache.set(key, m);
   return m;
 }
+
+// ---- Lightweight procedural textures --------------------------------------
+// Painted once into a tiny 256² canvas on the CPU, then tiled across surfaces
+// via uScale/vScale. No image downloads, a handful of small textures per map —
+// cheap, but it kills the flat, washed-out look of the plain-colour floors.
+// The bitmaps are grayscale (centred near white) and the material's diffuseColor
+// tints them, so one texture serves every colour of that surface type.
+type TexKind = "concrete" | "grass" | "grain" | "sand";
+const texCache = new Map<string, DynamicTexture>();
+
+function makeTex(scene: Scene, kind: TexKind, uScale: number, vScale: number): DynamicTexture {
+  const key = `${kind}:${uScale.toFixed(2)}:${vScale.toFixed(2)}`;
+  const hit = texCache.get(key);
+  if (hit) return hit;
+  const S = 256;
+  const t = new DynamicTexture(`tex_${key}`, { width: S, height: S }, scene, true);
+  const ctx = t.getContext() as unknown as CanvasRenderingContext2D;
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  const put = (i: number, v: number) => {
+    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i + 3] = 255;
+  };
+  const blotch = (n: number, alpha: number, maxR: number) => {
+    for (let b = 0; b < n; b++) {
+      const x = Math.random() * S;
+      const y = Math.random() * S;
+      const r = 6 + Math.random() * maxR;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(0,0,0,${alpha})`);
+      g.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  if (kind === "grain") {
+    // Very subtle near-white speckle — scale-tolerant, safe on any box face.
+    for (let i = 0; i < d.length; i += 4) put(i, 224 + ((Math.random() * 31) | 0));
+    ctx.putImageData(img, 0, 0);
+  } else if (kind === "sand") {
+    for (let i = 0; i < d.length; i += 4) put(i, 206 + ((Math.random() * 49) | 0));
+    ctx.putImageData(img, 0, 0);
+    blotch(18, 0.05, 22);
+  } else if (kind === "grass") {
+    // Coarser mottle + darker clumps so the lawn reads as grass, not felt.
+    for (let i = 0; i < d.length; i += 4) put(i, 150 + ((Math.random() * 105) | 0));
+    ctx.putImageData(img, 0, 0);
+    blotch(44, 0.14, 20);
+  } else {
+    // concrete: mottled grey, soft dark blotches, and a faint slab seam at the
+    // tile edge so repeated tiles read as poured concrete panels.
+    for (let i = 0; i < d.length; i += 4) put(i, 205 + ((Math.random() * 50) | 0));
+    ctx.putImageData(img, 0, 0);
+    blotch(24, 0.06, 26);
+    ctx.strokeStyle = "rgba(0,0,0,0.20)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(1.5, 1.5, S - 3, S - 3);
+  }
+
+  t.update(false);
+  t.wrapU = Texture.WRAP_ADDRESSMODE;
+  t.wrapV = Texture.WRAP_ADDRESSMODE;
+  t.uScale = uScale;
+  t.vScale = vScale;
+  texCache.set(key, t);
+  return t;
+}
+
+const texMatCache = new Map<string, StandardMaterial>();
+
+/** A `mat()`-style material whose colour is modulated by a tiled procedural
+ * texture. `uScale/vScale` control how many times the bitmap repeats. */
+function texMat(scene: Scene, hex: string, kind: TexKind, uScale: number, vScale: number, emissive = 0.1, zoff = 0): StandardMaterial {
+  const key = `${hex}:${kind}:${uScale.toFixed(2)}:${vScale.toFixed(2)}:${emissive}:${zoff}`;
+  const hit = texMatCache.get(key);
+  if (hit) return hit;
+  const m = new StandardMaterial(`tm_${key}`, scene);
+  const c = Color3.FromHexString(hex);
+  m.diffuseColor = c; // tints the grayscale bitmap
+  m.diffuseTexture = makeTex(scene, kind, uScale, vScale);
+  m.emissiveColor = c.scale(emissive);
+  m.ambientColor = c;
+  m.specularColor = new Color3(0.1, 0.1, 0.1);
+  // Depth bias for flush ground decals: a negative zOffset pulls the polygon
+  // slightly toward the camera in the depth buffer so it wins over the lawn
+  // *without* being physically raised — which is what used to cut through the
+  // bottoms of props standing on it and cause the shimmering Z-fight.
+  m.zOffset = zoff;
+  texMatCache.set(key, m);
+  return m;
+}
+
+/** Grain material for static structural items (walls, boxes, cylinders). Fixed
+ * subtle tiling so the speckle looks consistent regardless of the mesh size. */
+const grainMat = (scene: Scene, hex: string, em = 0.09) => texMat(scene, hex, "grain", 3, 3, em);
 
 /** Dispatch to the right environment for the map's theme. Enables collisions. */
 export function buildEnvironment(scene: Scene, map: MapDefinition): Mesh[] {
@@ -53,21 +153,18 @@ function buildWarehouse(scene: Scene, map: MapDefinition): Mesh[] {
 
   const colliders: Mesh[] = [];
   const floor = MeshBuilder.CreateGround("floor", { width: map.width, height: map.depth }, scene);
-  floor.material = mat(scene, "#3a4655", 0.05);
+  // Poured-concrete slab: a tiled panel every ~4 m so the floor no longer reads
+  // as a single flat plane.
+  floor.material = texMat(scene, "#3a4655", "concrete", map.width / 4, map.depth / 4, 0.05);
   floor.checkCollisions = true;
   colliders.push(floor);
 
-  const grid = MeshBuilder.CreateGround("grid", { width: map.width, height: map.depth, subdivisions: 1 }, scene);
-  grid.position.y = 0.002;
-  const gm = new StandardMaterial("gridMat", scene);
-  gm.wireframe = true;
-  gm.emissiveColor = new Color3(0.12, 0.16, 0.2);
-  gm.alpha = 0.25;
-  grid.material = gm;
-  grid.isPickable = false;
+  // (The old wireframe grid overlay was removed: the concrete texture already
+  // draws panel seams, and a separate plane hovering above the floor only added
+  // Z-fighting with props standing on it.)
 
   const half = map.wallHeight / 2;
-  const wallMat = mat(scene, "#1c2530", 0.03);
+  const wallMat = grainMat(scene, "#1c2530", 0.03);
   const walls: Array<[number, number, number, number]> = [
     [0, map.bounds.minZ, map.width, 0.5],
     [0, map.bounds.maxZ, map.width, 0.5],
@@ -114,7 +211,7 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   const box = (name: string, W: number, H: number, D: number, x: number, y: number, z: number, hex: string, solid = false, em = 0.09) => {
     const m = MeshBuilder.CreateBox(name, { width: W, height: H, depth: D }, scene);
     m.position.set(x, y, z);
-    m.material = mat(scene, hex, em);
+    m.material = grainMat(scene, hex, em); // subtle grain on static structures
     m.checkCollisions = solid;
     m.isPickable = solid;
     if (solid) colliders.push(m);
@@ -123,16 +220,22 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   const cyl = (name: string, dia: number, H: number, x: number, y: number, z: number, hex: string, solid = false, tess = 12, em = 0.09) => {
     const m = MeshBuilder.CreateCylinder(name, { diameter: dia, height: H, tessellation: tess }, scene);
     m.position.set(x, y, z);
-    m.material = mat(scene, hex, em);
+    m.material = grainMat(scene, hex, em);
     m.checkCollisions = solid;
     m.isPickable = solid;
     if (solid) colliders.push(m);
     return m;
   };
-  const flat = (name: string, W: number, D: number, x: number, z: number, hex: string, y = 0.02) => {
+  // Flush ground decals (driveway, path, sand …). They sit dead flat on the lawn
+  // (y≈0) and win the depth test via a negative zOffset instead of being raised,
+  // so props standing on them are no longer sliced by a raised plane. `zPri`
+  // orders overlapping decals (more-negative draws in front). `kind` picks the
+  // surface look; tiling is derived from the patch size for a constant grain.
+  const flat = (name: string, W: number, D: number, x: number, z: number, hex: string, kind: TexKind = "concrete", zPri = -2) => {
     const g = MeshBuilder.CreateGround(name, { width: W, height: D }, scene);
-    g.position.set(x, y, z);
-    g.material = mat(scene, hex, 0.05);
+    g.position.set(x, 0.001, z);
+    const tile = kind === "grass" ? 4 : kind === "sand" ? 3 : 4;
+    g.material = texMat(scene, hex, kind, Math.max(1, W / tile), Math.max(1, D / tile), 0.05, zPri);
     g.isPickable = false;
     return g;
   };
@@ -140,20 +243,21 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   // Horizon + lawn.
   const far = MeshBuilder.CreateGround("far", { width: 400, height: 400 }, scene);
   far.position.y = -0.06;
-  far.material = mat(scene, "#3f7d2e", 0.06);
+  far.material = texMat(scene, "#3f7d2e", "grass", 50, 50, 0.06);
   far.isPickable = false;
   const lawn = MeshBuilder.CreateGround("lawn", { width: w + 8, height: d + 8 }, scene);
   lawn.position.set((minX + maxX) / 2, 0, cz);
-  lawn.material = mat(scene, "#4f9e3a", 0.07);
+  lawn.material = texMat(scene, "#4f9e3a", "grass", (w + 8) / 4, (d + 8) / 4, 0.07);
   lawn.checkCollisions = true;
   colliders.push(lawn);
 
-  // Ground textures (flush, decorative).
-  flat("driveway", 34, 12, 0, minZ + 6, "#8f8a82");
-  flat("path", 3.4, 46, 0, cz - 4, "#9a9184");
-  flat("patio", 26, 10, 4, 24, "#9a927f");
-  flat("gardenBedW", 12, 12, -30, 1, "#6b4a2e");
-  flat("gardenBedNE", 10, 10, 30, 15, "#6b4a2e");
+  // Ground textures (flush, decorative). The path crosses the driveway/patio, so
+  // it gets a more-forward zPriority to layer cleanly over them.
+  flat("driveway", 34, 12, 0, minZ + 6, "#8f8a82", "concrete", -2);
+  flat("path", 3.4, 46, 0, cz - 4, "#9a9184", "concrete", -3);
+  flat("patio", 26, 10, 4, 24, "#9a927f", "concrete", -2);
+  flat("gardenBedW", 12, 12, -30, 1, "#6b4a2e", "sand", -2);
+  flat("gardenBedNE", 10, 10, 30, 15, "#6b4a2e", "sand", -2);
 
   // Full perimeter fence. The wall slabs are pushed OUTWARD by half their
   // thickness so each inner face sits exactly on the bounds line (minX/maxX/…).
@@ -240,7 +344,7 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
 
   // ---- Sandbox (south-east) ----
   const sbX = 32, sbZ = -30, sbS = 5;
-  flat("sand", sbS, sbS, sbX, sbZ, "#e0c98a");
+  flat("sand", sbS, sbS, sbX, sbZ, "#e0c98a", "sand", -2);
   box("sbEdge", sbS + 0.4, 0.3, 0.3, sbX, 0.15, sbZ - sbS / 2, "#8a6a3f", true, 0.06);
   box("sbEdge", sbS + 0.4, 0.3, 0.3, sbX, 0.15, sbZ + sbS / 2, "#8a6a3f", true, 0.06);
   box("sbEdge", 0.3, 0.3, sbS, sbX - sbS / 2, 0.15, sbZ, "#8a6a3f", true, 0.06);
@@ -272,7 +376,8 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
     ] as Array<[number, number, number, number]>) {
       const leaf = MeshBuilder.CreateSphere("leaf", { diameter: dia, segments: 8 }, scene);
       leaf.position.set(tx + ox, oy, tz + oz);
-      leaf.material = mat(scene, "#3f7d34", 0.1);
+      // Mottled foliage instead of a flat green ball.
+      leaf.material = texMat(scene, "#3f7d34", "grass", 2.2, 2.2, 0.1);
       leaf.isPickable = false;
     }
   };
@@ -291,9 +396,10 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   // canopy box on a darker trunk box so they read as foliage, not walls.
   const hedge = (x: number, z: number, W: number, D: number) => {
     const H = 1.7;
-    box("hedge", W, H, D, x, H / 2, z, "#3f7d34", true, 0.09);
+    // Foliage texture (not the structural grain) so hedges read as leafy.
+    box("hedge", W, H, D, x, H / 2, z, "#3f7d34", true, 0.09).material = texMat(scene, "#3f7d34", "grass", 2.5, 2.5, 0.09);
     // Lighter top layer (decorative, non-colliding) so it looks bushy.
-    box("hedgeTop", W + 0.25, 0.5, D + 0.25, x, H + 0.12, z, "#4f9e3a", false, 0.11);
+    box("hedgeTop", W + 0.25, 0.5, D + 0.25, x, H + 0.12, z, "#4f9e3a", false, 0.11).material = texMat(scene, "#4f9e3a", "grass", 2.5, 2.5, 0.11);
   };
   // South-central L (near the hunters' approach — first cover off the gate).
   hedge(-4, -20, 10, 0.9);
