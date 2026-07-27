@@ -886,12 +886,20 @@ export class GameScene {
         this.hud.setCrosshairHit(true, false);
         // Axe hits use one of two impact sounds at random; gun hits use "hit".
         this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "hit");
+        // A killing blow: confirm it straight from THIS direct result (always
+        // arrives — same message as the hitmarker), so the killer can never miss
+        // their own kill even if the broadcast feed hiccups.
+        if (m.killed) {
+          const victimName = (this.room.state as any).players?.get?.(m.targetId)?.name || "a hider";
+          this.hud.killfeed(`You eliminated ${victimName}`, true);
+          this.audio.playOneOf(["death1", "death2"]);
+        }
       } else if (m.decoy) {
-        // Destroyed a decoy clone → ammo reward. Positive cue, no penalty.
-        // An axe hitting a clone sounds exactly like hitting a real hider, so the
-        // seeker can't tell decoy from prop by ear; gun kills keep the pop cue.
+        // Destroyed a decoy clone → ammo reward. Positive cue, no penalty. Tell
+        // the shooter it was a fake so it doesn't feel like a "no-message kill".
         this.hud.setCrosshairHit(true, false);
         this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "transform");
+        this.hud.killfeed("Decoy destroyed");
       } else if (m.melee) {
         // Axe swung through empty air (no prop, no clone) — a whiffing miss.
         this.audio.play("axe_miss");

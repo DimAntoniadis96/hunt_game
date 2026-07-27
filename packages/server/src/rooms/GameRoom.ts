@@ -60,6 +60,7 @@ import { generateRoomCode } from "../utils/roomCode.js";
 import { resolveShot, type CylinderTarget } from "./hitscan.js";
 import { selectMeleeTarget, type MeleeTarget } from "./melee.js";
 import { canFlashbangBlind, type FlashbangActor } from "./flashbang.js";
+import { rosterAction } from "./roster.js";
 import { PLAYER_HIT_HEIGHT, playerHitCylinder, propModelHitCylinder } from "./targetGeometry.js";
 
 /** How close a prop must be to a map object to copy its model (metres). */
@@ -193,22 +194,16 @@ export class GameRoom extends Room<{ state: GameState }> {
    *   • both teams still populated → keep playing as normal.
    */
   private handleRosterChange() {
-    const phase = this.state.phase;
-    if (phase === Phase.Lobby || phase === Phase.MatchEnd) return;
-
     const players = [...this.state.players.values()];
-    if (players.length < MIN_PLAYERS_TO_START) {
-      this.resetToLobby("Not enough players — back to the lobby.");
-      return;
+    switch (rosterAction(this.state.phase, players, MIN_PLAYERS_TO_START)) {
+      case "lobby":
+        this.resetToLobby("Not enough players — back to the lobby.");
+        break;
+      case "rebuild":
+        this.restartWithNewTeams();
+        break;
+      // "none" → both sides still populated (or a transient phase); keep playing.
     }
-
-    // Enough players remain; during a countdown or the scoreboard just let it ride.
-    if (phase === Phase.Countdown || phase === Phase.RoundEnd) return;
-
-    // Prep / Hunt: if either side is now empty the round is undecidable → restart.
-    const props = players.filter((p) => p.team === Team.Props).length;
-    const hunters = players.filter((p) => p.team === Team.Hunters).length;
-    if (props === 0 || hunters === 0) this.restartWithNewTeams();
   }
 
   /**
@@ -541,7 +536,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       victim.moving = false;
       attacker.score += SCORE_PER_PROP_KILL;
       this.state.huntersScore += SCORE_PER_PROP_KILL;
-      this.broadcast(ServerMessage.Killfeed, { text: `${attacker.name} killed ${victim.name}`, death: true });
+      // Everyone else sees "X killed Y"; the killer gets a guaranteed "You
+      // eliminated Y" from their own ShotResult, so exclude them here (no dupe).
+      this.broadcast(ServerMessage.Killfeed, { text: `${attacker.name} killed ${victim.name}`, death: true }, { except: attackerClient });
       victimClient?.send(ServerMessage.Eliminated, { byId: attacker.id });
       this.checkRoundEnd();
     }

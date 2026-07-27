@@ -189,9 +189,10 @@ export class HUD {
     if (hit || wrong) window.setTimeout(() => c.classList.remove("hit"), 120);
   }
 
-  killfeed(text: string) {
+  killfeed(text: string, highlight = false) {
+    if (!text) return;
     const entry = document.createElement("div");
-    entry.className = "entry";
+    entry.className = highlight ? "entry you" : "entry";
     entry.textContent = text;
     this.refs.killfeed.appendChild(entry);
     window.setTimeout(() => entry.remove(), 6000);
