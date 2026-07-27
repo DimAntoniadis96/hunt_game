@@ -302,7 +302,12 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   const shedRoof = MeshBuilder.CreateCylinder("shedRoof", { diameterTop: 0, diameterBottom: 7, height: 1.6, tessellation: 4 }, scene);
   shedRoof.rotation.y = Math.PI / 4;
   shedRoof.position.set(-30, 3.5, -28);
-  shedRoof.material = mat(scene, "#7a3b2e", 0.1);
+  // The pyramid roof is a hollow shell — a prop that gets on the shed can tuck
+  // under it and vanish at the apex. Make it translucent (like the tree leaves)
+  // so anyone under/inside the roof is always visible to the hunter.
+  const shedRoofMat = mat(scene, "#7a3b2e", 0.1);
+  shedRoofMat.alpha = 0.5;
+  shedRoof.material = shedRoofMat;
   shedRoof.isPickable = false;
 
   // ---- Pool (east) ----
@@ -366,6 +371,13 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
   car(14, "#2e6da4");
 
   // ---- Trees ----
+  // The canopy is deliberately SEE-THROUGH: an opaque leaf-ball let a prop tuck
+  // inside/behind it and stay invisible, which is unfair to the hunter. The
+  // leaves keep their mottled foliage look but are translucent, so a hider under
+  // or within the tree shows through as a clear silhouette. Nothing about the
+  // props changes — the tree just stops being a blind spot.
+  const leafMat = texMat(scene, "#3f7d34", "grass", 2.2, 2.2, 0.12);
+  leafMat.alpha = 0.55; // translucent foliage — you can see what's inside
   const tree = (tx: number, tz: number) => {
     cyl("trunk", 0.7, 3, tx, 1.5, tz, "#6b4a2a", true, 8, 0.06);
     for (const [ox, oy, oz, dia] of [
@@ -376,8 +388,7 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
     ] as Array<[number, number, number, number]>) {
       const leaf = MeshBuilder.CreateSphere("leaf", { diameter: dia, segments: 8 }, scene);
       leaf.position.set(tx + ox, oy, tz + oz);
-      // Mottled foliage instead of a flat green ball.
-      leaf.material = texMat(scene, "#3f7d34", "grass", 2.2, 2.2, 0.1);
+      leaf.material = leafMat;
       leaf.isPickable = false;
     }
   };

@@ -47,6 +47,28 @@ function hasCollisionHelperCall(sf, node) {
   return found;
 }
 
+// Decoys are solid to everyone EXCEPT their owner (who spawns inside them), so
+// the enable flag is an owner-exclusion expression rather than a literal `true`.
+// This still guarantees hunters/other props collide (can't reveal hiders by
+// bumping) while the dropper walks free of their own clone.
+function hasDecoyCollisionCall(sf, node) {
+  let found = false;
+  const visit = (child) => {
+    if (
+      ts.isCallExpression(child) &&
+      child.expression.getText(sf) === "setPropVisualCollisions" &&
+      child.arguments[0]?.getText(sf) === "node" &&
+      /ownerId/.test(child.arguments[1]?.getText(sf) ?? "")
+    ) {
+      found = true;
+      return;
+    }
+    ts.forEachChild(child, visit);
+  };
+  if (node) visit(node);
+  return found;
+}
+
 const gameScene = sourceFile(gameScenePath);
 const mapBuilder = sourceFile(mapBuilderPath);
 const failures = [];
@@ -60,8 +82,8 @@ if (!hasCollisionHelperCall(mapBuilder, findFunctionLike(mapBuilder, "buildStati
 if (!hasCollisionHelperCall(gameScene, findFunctionLike(gameScene, "syncVisuals"))) {
   failures.push("real transformed players must use setPropVisualCollisions(node, true)");
 }
-if (!hasCollisionHelperCall(gameScene, findFunctionLike(gameScene, "syncDecoys"))) {
-  failures.push("decoy clones must use setPropVisualCollisions(node, true)");
+if (!hasDecoyCollisionCall(gameScene, findFunctionLike(gameScene, "syncDecoys"))) {
+  failures.push("decoy clones must use setPropVisualCollisions(node, <owner-exclusion>) so owners pass through but others collide");
 }
 
 if (failures.length) {

@@ -56,6 +56,7 @@ export class GameScene {
 
   private visuals = new Map<string, Visual>();
   private decoyNodes = new Map<string, TransformNode>();
+  private pendingOwnerDecoys = new Set<string>(); // owner's decoys not yet solid to them (still standing on them)
   private stepAccum = new Map<string, number>(); // per-hunter footstep timers
   private sendAccum = 0;
   private prevPhase: Phase | null = null;
@@ -454,21 +455,39 @@ export class GameScene {
   /** Render decoy clones from server state (created/removed as the list changes). */
   private syncDecoys(state: any) {
     const seen = new Set<string>();
+    const feet = this.input.getFeet();
     state.decoys.forEach((d: DecoyView) => {
       seen.add(d.id);
+      const mine = d.ownerId === this.net.sessionId;
       if (!this.decoyNodes.has(d.id)) {
         const node = createPropVisual(this.scene, d.modelKey, `decoy_${d.id}`);
         node.position.set(d.x, d.y, d.z);
         node.rotation.y = d.ry;
-        setPropVisualCollisions(node, true);
-        // Faint shimmer so the owner can tell their own decoys apart (subtle).
+        // A decoy spawns on the dropper's exact spot, so making it solid to the
+        // owner immediately would trap them inside their own clone. Others
+        // (hunters/props) collide at once so it's real bait; the owner's own
+        // decoy stays pass-through until they step clear (see below).
+        setPropVisualCollisions(node, d.ownerId !== this.net.sessionId);
         this.decoyNodes.set(d.id, node);
+        if (mine) this.pendingOwnerDecoys.add(d.id);
+      }
+      // Grace period: once the owner has walked off their fresh decoy, solidify
+      // it for them too — so afterwards they collide with / can stand on it just
+      // like everyone else. No lingering asymmetry, and never stuck at spawn.
+      if (mine && this.pendingOwnerDecoys.has(d.id)) {
+        const clearance = (PROP_MODELS[d.modelKey]?.radius ?? 0.5) + 0.55;
+        if (Math.hypot(feet.x - d.x, feet.z - d.z) > clearance) {
+          const node = this.decoyNodes.get(d.id);
+          if (node) setPropVisualCollisions(node, true);
+          this.pendingOwnerDecoys.delete(d.id);
+        }
       }
     });
     for (const [id, node] of this.decoyNodes) {
       if (!seen.has(id)) {
         node.dispose();
         this.decoyNodes.delete(id);
+        this.pendingOwnerDecoys.delete(id);
       }
     }
   }

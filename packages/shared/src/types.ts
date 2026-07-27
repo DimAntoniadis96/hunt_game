@@ -200,6 +200,7 @@ export interface PlayerView {
 
 export interface DecoyView {
   id: string;
+  ownerId: string; // the prop that dropped this decoy (so its owner can pass through it)
   modelKey: string;
   x: number;
   y: number;
