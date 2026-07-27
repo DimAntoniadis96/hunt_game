@@ -914,8 +914,12 @@ export class GameScene {
     room.onMessage(ServerMessage.Killfeed, (m: any) => {
       // Small corner feed line for everyone — kills ("X killed Y"), leaves
       // ("X left"), and notices. Only an actual kill plays a death sting.
-      this.hud.killfeed(m.text ?? "");
-      if (m.death) this.audio.playOneOf(["death1", "death2"]);
+      // Falls back to the older {killerName, victimName} payload so the feed
+      // still works if the server hasn't been restarted yet.
+      const text = m.text ?? (m.killerName && m.victimName ? `${m.killerName} killed ${m.victimName}` : "");
+      if (text) this.hud.killfeed(text);
+      const isKill = m.death ?? !!m.killerName;
+      if (isKill) this.audio.playOneOf(["death1", "death2"]);
     });
     room.onMessage(ServerMessage.TransformResult, (m: any) => {
       if (m.ok) {
