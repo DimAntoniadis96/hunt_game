@@ -65,8 +65,10 @@ export const SCORE_PROP_SURVIVE = 150; // prop alive at round end
 export const SCORE_WRONG_SHOT_PENALTY = 25;
 
 /** Flashbang: a close-range prop escape tool that briefly blinds nearby hunters. */
-export const FLASHBANG_RANGE = 4.0; // metres — intentionally short, only panic-close
-export const FLASHBANG_BLIND_MS = 1800; // long enough to escape, short enough to stay fair
+export const FLASHBANG_RANGE = 7.0; // metres (3D). Close-range panic tool, but 4m
+// measured in 3D (incl. eye-height gap) almost never triggered in a real chase;
+// 7m reliably blinds a pursuer who's closing in without being a ranged stun.
+export const FLASHBANG_BLIND_MS = 4000; // seekers are blinded for 4 seconds
 export const FLASHBANG_COOLDOWN_MS = 18000; // prevents repeated chain-blinding
 
 /**

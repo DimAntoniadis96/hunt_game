@@ -72,6 +72,9 @@ export class GameScene {
   private transformReadyAt = 0; // performance.now() when a disguise change is next allowed
   private decoyReadyAt = 0; // performance.now() when the next decoy (F) is allowed
   private flashbangReadyAt = 0; // performance.now() when the next flashbang (T) is allowed
+  private blindEl: HTMLDivElement | null = null; // top-level flashbang blind overlay
+  private blindRaf = 0;
+  private blindUntil = 0;
   private lastFinaleSec = -1; // tracks the finale countdown second so the beep fires once each
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
@@ -808,6 +811,51 @@ export class GameScene {
     tick();
   }
 
+  /**
+   * Flashbang blind: a full white-out over the WHOLE screen for `ms`, then a
+   * short fade. Deliberately a top-level <body> element with the maximum
+   * z-index and inline styles — it does NOT live inside the HUD/#ui-root, so no
+   * stacking context or CSS rule can let the 3D canvas paint over it (the bug
+   * that made the old overlay invisible). Re-triggering just extends the timer.
+   */
+  private blindScreen(ms: number) {
+    const dur = Math.max(300, ms);
+    if (!this.blindEl) {
+      const el = document.createElement("div");
+      el.setAttribute("aria-hidden", "true");
+      el.style.cssText =
+        "position:fixed;inset:0;z-index:2147483647;pointer-events:none;background:#ffffff;" +
+        "display:flex;align-items:center;justify-content:center;opacity:0;" +
+        "transition:none;will-change:opacity;";
+      const label = document.createElement("div");
+      label.textContent = "BLINDED";
+      label.style.cssText =
+        "font-family:ui-monospace,'Cascadia Code',monospace;font-weight:900;" +
+        "font-size:clamp(22px,5vw,54px);letter-spacing:2px;color:rgba(6,14,22,0.55);";
+      el.appendChild(label);
+      document.body.appendChild(el);
+      this.blindEl = el;
+    }
+    const el = this.blindEl;
+    const start = performance.now();
+    this.blindUntil = start + dur;
+    const fadeMs = 450; // fade out over the last part of the blind
+    if (this.blindRaf) cancelAnimationFrame(this.blindRaf);
+    const tick = () => {
+      const now = performance.now();
+      const remaining = this.blindUntil - now;
+      if (remaining <= 0) {
+        el.style.opacity = "0";
+        this.blindRaf = 0;
+        return;
+      }
+      el.style.opacity = remaining > fadeMs ? "1" : String(Math.max(0, remaining / fadeMs));
+      this.blindRaf = window.requestAnimationFrame(tick);
+    };
+    el.style.opacity = "1";
+    this.blindRaf = window.requestAnimationFrame(tick);
+  }
+
   // ---- server-driven effects ---------------------------------------------
 
   private registerServerEvents() {
@@ -872,15 +920,22 @@ export class GameScene {
         this.audio.play("ui");
         return;
       }
-      const pos = new Vector3(m.x ?? 0, m.y ?? 0, m.z ?? 0);
-      this.spawnFlashbangBurst(pos);
-      const { vol, pan } = this.spatialParams(pos.x, pos.y, pos.z, 12);
-      this.audio.playSpatial("flash", Math.max(0.35, vol), pan);
+      // Apply the outcome FIRST so a VFX/audio hiccup can never pre-empt the
+      // blind — the blind is the whole point of the ability.
       if (m.blinded) {
-        this.hud.flashBlind(m.durationMs ?? FLASHBANG_BLIND_MS);
+        this.blindScreen(m.durationMs ?? FLASHBANG_BLIND_MS);
       } else {
         this.flashbangReadyAt = performance.now() + (m.cooldownMs ?? FLASHBANG_COOLDOWN_MS);
         this.hud.banner((m.affectedCount ?? 0) > 0 ? "Flashbang hit!" : "No seeker close enough", 1000);
+      }
+      // Cosmetic burst + spatial pop, isolated so any failure can't affect the blind.
+      try {
+        const pos = new Vector3(m.x ?? 0, m.y ?? 0, m.z ?? 0);
+        this.spawnFlashbangBurst(pos);
+        const { vol, pan } = this.spatialParams(pos.x, pos.y, pos.z, 12);
+        this.audio.playSpatial("flash", Math.max(0.35, vol), pan);
+      } catch {
+        /* VFX/audio are non-essential — never let them block the blind */
       }
     });
     room.onMessage(ServerMessage.RoundEvent, (m: any) => {
@@ -896,6 +951,9 @@ export class GameScene {
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("pointerlockchange", this.onLockChange);
+    if (this.blindRaf) cancelAnimationFrame(this.blindRaf);
+    this.blindEl?.remove();
+    this.blindEl = null;
     this.input.dispose();
     this.engine.stopRenderLoop();
     this.scene.dispose();
