@@ -38,43 +38,70 @@ export class Screens {
     this.menu = document.createElement("div");
     this.menu.className = "screen";
     this.menu.innerHTML = `
-      <div class="card">
+      <div class="card menu-card">
         <div class="brand"><h1>Mimic<span class="dot">Hunt</span></h1></div>
-        <p class="tagline">Hide as furniture. Or hunt the impostors. A browser prop-hunt.</p>
-        <label for="name">Display name</label>
-        <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. NightCrate" />
-        <button class="mt" data-a="public" style="width:100%">Quick Play (public)</button>
-        <div class="row mt">
+        <p class="tagline">Hide as furniture, or hunt the impostors — a fast browser prop-hunt.</p>
+
+        <div class="step"><span class="step-num">1</span><label for="name">Choose your name</label></div>
+        <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. NightCrate" autocomplete="off" spellcheck="false" />
+
+        <div class="step"><span class="step-num">2</span><label>Jump in and play</label></div>
+        <button class="cta" data-a="public">
+          <span class="cta-icon" aria-hidden="true">▶</span>
+          <span class="cta-text">Quick Play<small>Start a public game right now</small></span>
+        </button>
+
+        <div class="or-sep"><span>or play with friends</span></div>
+        <div class="row">
           <button class="secondary" data-a="create">Create private room</button>
           <button class="ghost" data-a="settings">Settings</button>
         </div>
-        <label>Join with a code</label>
+
+        <label>Have a room code?</label>
         <div class="row">
-          <input id="code" type="text" maxlength="8" placeholder="ABCDE" style="text-transform:uppercase" />
-          <button class="ghost" data-a="join" style="flex:0 0 90px">Join</button>
+          <input id="code" type="text" maxlength="8" placeholder="ABCDE" style="text-transform:uppercase" autocomplete="off" spellcheck="false" />
+          <button class="secondary" data-a="join" style="flex:0 0 96px">Join</button>
         </div>
+
         <div class="error" data-r="err"></div>
-        <p class="hint">Controls: <b>WASD</b> move · <b>Mouse</b> look · <b>Space</b> jump · <b>E</b> disguise (props) ·
-        <b>R</b> reload/lock · <b>T</b> flash · <b>Left-click</b> shoot (hunters) · <b>Tab</b> scores.</p>
+
+        <details class="controls">
+          <summary>How to play &amp; controls</summary>
+          <div class="keygrid">
+            <div class="keychip"><kbd>W A S D</kbd><span>Move</span></div>
+            <div class="keychip"><kbd>Mouse</kbd><span>Look around</span></div>
+            <div class="keychip"><kbd>Space</kbd><span>Jump</span></div>
+            <div class="keychip"><kbd>E</kbd><span>Disguise · props</span></div>
+            <div class="keychip"><kbd>F</kbd><span>Decoy · props</span></div>
+            <div class="keychip"><kbd>T</kbd><span>Flash · props</span></div>
+            <div class="keychip"><kbd>R</kbd><span>Reload / Lock</span></div>
+            <div class="keychip"><kbd>Click</kbd><span>Shoot · hunters</span></div>
+            <div class="keychip"><kbd>Tab</kbd><span>Scores</span></div>
+          </div>
+        </details>
       </div>`;
 
     this.lobby = document.createElement("div");
     this.lobby.className = "screen hidden";
     this.lobby.innerHTML = `
-      <div class="card">
+      <div class="card lobby-card">
         <div class="brand"><h1>Lobby</h1></div>
         <div data-r="codewrap">
-          <label>Room code — share to invite</label>
+          <label>Room code — share to invite friends</label>
           <div class="code-pill" data-r="code">—</div>
         </div>
         <label class="mt">Players</label>
         <ul class="lobby-players" data-r="players"></ul>
+
+        <button class="cta ready-cta" data-a="ready" data-ready="0">
+          <span class="cta-icon" aria-hidden="true">✓</span>
+          <span class="cta-text"><span data-r="readylabel">Ready up</span><small data-r="readysub">Tap when you're set to start</small></span>
+        </button>
         <div class="row mt">
-          <button data-a="ready" data-ready="0">Ready up</button>
           <button class="secondary" data-a="settings">Settings</button>
-          <button class="ghost" data-a="leave" style="flex:0 0 90px">Leave</button>
+          <button class="ghost" data-a="leave" style="flex:0 0 96px">Leave</button>
         </div>
-        <p class="hint" data-r="lobbyhint">Match starts when everyone is ready (min ${MIN_PLAYERS_TO_START} players).</p>
+        <p class="hint" data-r="lobbyhint">The match starts when everyone is ready (min ${MIN_PLAYERS_TO_START} players).</p>
       </div>`;
 
     this.overlay = document.createElement("div");
@@ -118,9 +145,7 @@ export class Screens {
     const readyBtn = this.lobby.querySelector<HTMLButtonElement>('[data-a="ready"]')!;
     readyBtn.addEventListener("click", () => {
       const next = readyBtn.dataset.ready === "1" ? 0 : 1;
-      readyBtn.dataset.ready = String(next);
-      readyBtn.textContent = next ? "Cancel ready" : "Ready up";
-      readyBtn.className = next ? "secondary" : "";
+      this.setReadyButton(next === 1);
       this.onReady?.(next === 1);
     });
     this.lobby.querySelector('[data-a="settings"]')!.addEventListener("click", () => this.onSettings?.());
@@ -130,6 +155,17 @@ export class Screens {
   error(msg: string) {
     const e = this.menu.querySelector<HTMLElement>('[data-r="err"]')!;
     e.textContent = msg;
+  }
+
+  /** Reflect ready state on the lobby's primary button (pulsing green → calm). */
+  private setReadyButton(ready: boolean) {
+    const btn = this.lobby.querySelector<HTMLButtonElement>('[data-a="ready"]')!;
+    btn.dataset.ready = ready ? "1" : "0";
+    btn.classList.toggle("is-ready", ready);
+    this.lobby.querySelector<HTMLElement>('[data-r="readylabel"]')!.textContent = ready ? "Cancel ready" : "Ready up";
+    this.lobby.querySelector<HTMLElement>('[data-r="readysub"]')!.textContent = ready
+      ? "Waiting for the other players…"
+      : "Tap when you're set to start";
   }
 
   showMenu() {
@@ -188,6 +224,7 @@ export class Screens {
     const wrap = this.lobby.querySelector<HTMLElement>('[data-r="codewrap"]')!;
     wrap.style.display = isPrivate ? "block" : "none";
     this.lobby.querySelector<HTMLElement>('[data-r="code"]')!.textContent = code || "—";
+    this.setReadyButton(false); // fresh lobby: primary action is "Ready up" again
   }
 
   updateLobby(state: LobbyState) {

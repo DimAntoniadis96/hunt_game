@@ -5,6 +5,7 @@ interface StateLike {
   round: number;
   roundsPerMatch: number;
   phaseEndsAt: number;
+  rebuilding?: boolean;
   propsScore: number;
   huntersScore: number;
   players: { forEach: (cb: (p: PlayerView, key: string) => void) => void; size: number };
@@ -47,6 +48,13 @@ export class HUD {
         <div class="sub" data-r="wstate">R to reload</div>
       </div>
       <div class="killfeed" data-r="killfeed"></div>
+      <div class="rebuild-screen" data-r="rebuild" aria-hidden="true">
+        <div class="rebuild-panel">
+          <div class="rebuild-eyebrow">Teams rebuilding</div>
+          <div class="rebuild-num" data-r="rebuildnum">8</div>
+          <div class="rebuild-sub">A team left — assigning new roles…</div>
+        </div>
+      </div>
       <div class="banner" data-r="banner"></div>
       <div class="hunter-wait-screen" data-r="hunterwait" aria-hidden="true">
         <div class="hunter-wait-map" aria-hidden="true">
@@ -119,7 +127,13 @@ export class HUD {
 
   update(state: StateLike, me: PlayerView | undefined, ping: number) {
     const phase = state.phase;
-    this.refs.phase.textContent = PHASE_LABEL[phase] ?? phase;
+    const rebuilding = phase === Phase.Countdown && !!state.rebuilding;
+    this.refs.phase.textContent = rebuilding ? "REBUILDING" : PHASE_LABEL[phase] ?? phase;
+
+    // Full-screen "teams rebuilding" countdown after a side emptied out.
+    this.refs.rebuild.classList.toggle("show", rebuilding);
+    this.refs.rebuild.setAttribute("aria-hidden", rebuilding ? "false" : "true");
+    if (rebuilding) this.refs.rebuildnum.textContent = String(this.secondsLeft(state.phaseEndsAt));
     this.refs.phase.className = `phase ${me?.team === Team.Props ? "team-props" : me?.team === Team.Hunters ? "team-hunters" : ""}`;
 
     const showTimer = phase === Phase.Prep || phase === Phase.Hunt || phase === Phase.Countdown || phase === Phase.RoundEnd;

@@ -20,6 +20,7 @@ export const PREP_SECONDS = 30; // props hide while hunters are frozen/blind
 export const HUNT_SECONDS = 150; // main hunt phase
 export const ROUND_END_SECONDS = 6; // scoreboard / transition
 export const LOBBY_COUNTDOWN_SECONDS = 5; // once enough players are ready
+export const REBUILD_SECONDS = 8; // grace countdown when a team empties, before reshuffling roles
 export const ROUNDS_PER_MATCH = 4; // teams swap each round
 
 /** Movement (units = metres). Server rejects motion faster than this. */

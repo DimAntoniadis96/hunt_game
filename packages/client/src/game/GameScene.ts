@@ -77,6 +77,7 @@ export class GameScene {
   private blindRaf = 0;
   private blindUntil = 0;
   private lastFinaleSec = -1; // tracks the finale countdown second so the beep fires once each
+  private lastRoundEventPhase: string | null = null; // so mid-phase notices don't replay round stings
   private lastDisguiseModel = "";
   private lastShotTime = -9999;
   private lastMeleeTime = -9999;
@@ -354,7 +355,8 @@ export class GameScene {
       this.animateAxe();
     }
 
-    const frozen = !me || !me.alive || (phase === Phase.Prep && me.team === Team.Hunters);
+    const frozen =
+      !me || !me.alive || (phase === Phase.Prep && me.team === Team.Hunters) || (phase === Phase.Countdown && !!state.rebuilding);
     this.input.setFrozen(frozen);
     // Jump is allowed for any alive player (even a frozen hunter during Prep).
     this.input.setJumpAllowed(!!me && me.alive);
@@ -910,8 +912,10 @@ export class GameScene {
       /* HUD/state handled elsewhere; death sound comes from Killfeed */
     });
     room.onMessage(ServerMessage.Killfeed, (m: any) => {
-      this.hud.killfeed(`${m.killerName} ▶ ${m.victimName}`);
-      this.audio.playOneOf(["death1", "death2"]); // a hider died
+      // Small corner feed line for everyone — kills ("X killed Y"), leaves
+      // ("X left"), and notices. Only an actual kill plays a death sting.
+      this.hud.killfeed(m.text ?? "");
+      if (m.death) this.audio.playOneOf(["death1", "death2"]);
     });
     room.onMessage(ServerMessage.TransformResult, (m: any) => {
       if (m.ok) {
@@ -959,8 +963,13 @@ export class GameScene {
     });
     room.onMessage(ServerMessage.RoundEvent, (m: any) => {
       if (m.message) this.hud.banner(m.message, 2200);
-      if (m.phase === Phase.Prep || m.phase === Phase.Hunt) this.audio.play("round_start");
-      else if (m.phase === Phase.RoundEnd || m.phase === Phase.MatchEnd) this.audio.play("round_end");
+      // Round stings only fire on an actual phase change — otherwise mid-phase
+      // notices (a player leaving, a team reshuffle) would replay them.
+      if (m.phase !== this.lastRoundEventPhase) {
+        this.lastRoundEventPhase = m.phase;
+        if (m.phase === Phase.Prep || m.phase === Phase.Hunt) this.audio.play("round_start");
+        else if (m.phase === Phase.RoundEnd || m.phase === Phase.MatchEnd) this.audio.play("round_end");
+      }
     });
   }
 

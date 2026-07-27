@@ -11,6 +11,7 @@ import {
   MAX_DECOYS_PER_PLAYER,
   HUNT_SECONDS,
   LOBBY_COUNTDOWN_SECONDS,
+  REBUILD_SECONDS,
   MAPS,
   MAX_MESSAGES_PER_SECOND,
   MAX_NAME_LENGTH,
@@ -168,9 +169,64 @@ export class GameRoom extends Room<{ state: GameState }> {
   }
 
   async onLeave(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    const name = player?.name || "A player";
+    const midGame = this.state.phase !== Phase.Lobby;
     this.state.players.delete(client.sessionId);
     this.meta.delete(client.sessionId);
     console.log(`[GameRoom] ${client.sessionId} removed`);
+    // Announce departures as a small corner feed line (not a center banner), the
+    // same place kills show up. Only mid-game — the lobby list updates itself.
+    if (midGame) this.broadcast(ServerMessage.Killfeed, { text: `${name} left`, death: false });
+    // React to the new roster: a match needs both teams populated to continue.
+    this.handleRosterChange();
+  }
+
+  /**
+   * Called whenever the player roster changes mid-match (someone left). Keeps the
+   * game fair and unstuck:
+   *   • fewer than 2 players → the match can't field two teams, so return to the
+   *     lobby (the lone player waits for someone to join).
+   *   • an active round where a whole side has emptied out (all props or all
+   *     hunters gone) → end it early, reshuffle everyone into fresh teams, and
+   *     restart from round 1 rather than leaving the survivors with nothing to do.
+   *   • both teams still populated → keep playing as normal.
+   */
+  private handleRosterChange() {
+    const phase = this.state.phase;
+    if (phase === Phase.Lobby || phase === Phase.MatchEnd) return;
+
+    const players = [...this.state.players.values()];
+    if (players.length < MIN_PLAYERS_TO_START) {
+      this.resetToLobby("Not enough players — back to the lobby.");
+      return;
+    }
+
+    // Enough players remain; during a countdown or the scoreboard just let it ride.
+    if (phase === Phase.Countdown || phase === Phase.RoundEnd) return;
+
+    // Prep / Hunt: if either side is now empty the round is undecidable → restart.
+    const props = players.filter((p) => p.team === Team.Props).length;
+    const hunters = players.filter((p) => p.team === Team.Hunters).length;
+    if (props === 0 || hunters === 0) this.restartWithNewTeams();
+  }
+
+  /**
+   * A whole side emptied out. Rather than snapping straight into a new round,
+   * show everyone a short "teams rebuilding" countdown, THEN reshuffle roles and
+   * restart. We reuse the Countdown phase (its timer already fires startRound at
+   * the end); `rebuilding` tells the client to show the rebuild screen instead of
+   * the normal "starting" one.
+   */
+  private restartWithNewTeams() {
+    this.state.propsScore = 0;
+    this.state.huntersScore = 0;
+    this.state.players.forEach((p) => (p.score = 0));
+    this.state.rebuilding = true;
+    this.state.phase = Phase.Countdown;
+    this.state.phaseEndsAt = Date.now() + REBUILD_SECONDS * 1000;
+    this.state.lastResult = RoundResult.None;
+    this.broadcast(ServerMessage.Killfeed, { text: "A team left — rebuilding teams", death: false });
   }
 
   onDispose() {
@@ -485,7 +541,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       victim.moving = false;
       attacker.score += SCORE_PER_PROP_KILL;
       this.state.huntersScore += SCORE_PER_PROP_KILL;
-      this.broadcast(ServerMessage.Killfeed, { killerName: attacker.name, victimName: victim.name });
+      this.broadcast(ServerMessage.Killfeed, { text: `${attacker.name} killed ${victim.name}`, death: true });
       victimClient?.send(ServerMessage.Eliminated, { byId: attacker.id });
       this.checkRoundEnd();
     }
@@ -639,6 +695,7 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   private startRound(round: number, assignSides: boolean) {
     this.state.round = round;
+    this.state.rebuilding = false; // the rebuild countdown (if any) is over
     if (assignSides) this.assignSides();
     this.applyTeamsForRound();
     this.spawnAndResetPlayers();
@@ -708,9 +765,10 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.startRound(this.state.round + 1, false); // sides already assigned; parity swaps
   }
 
-  private resetToLobby() {
+  private resetToLobby(message = "Back to lobby.") {
     this.state.phase = Phase.Lobby;
     this.state.round = 0;
+    this.state.rebuilding = false;
     this.state.propsScore = 0;
     this.state.huntersScore = 0;
     this.state.lastResult = RoundResult.None;
@@ -723,7 +781,7 @@ export class GameRoom extends Room<{ state: GameState }> {
       p.rotationLocked = false;
       p.score = 0;
     });
-    this.broadcastRound("Back to lobby.");
+    this.broadcastRound(message);
   }
 
   private checkRoundEnd() {

@@ -128,8 +128,10 @@ export interface HitPayload {
 }
 
 export interface KillfeedPayload {
-  killerName: string;
-  victimName: string;
+  /** Preformatted feed line, e.g. "Alice killed Bob" or "Carol left". */
+  text: string;
+  /** True only for an actual kill (plays a death sting); false for notices. */
+  death?: boolean;
   wrong?: boolean;
 }
 
