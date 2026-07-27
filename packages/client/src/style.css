@@ -609,64 +609,109 @@ button:disabled {
 .hunter-wait-eyebrow,
 .hunter-wait-url,
 .hunter-wait-credit,
-.hunter-wait-countdown {
+.hunter-wait-countdown,
+.hunter-wait-title,
+.hunter-wait-byline,
+.hunter-wait-sub {
   font-family: ui-monospace, "Cascadia Code", monospace;
-  letter-spacing: 0;
 }
+
+/* Game identity — the hero of the card. */
+.hunter-wait-title {
+  font-size: clamp(26px, 5.4vw, 52px);
+  font-weight: 900;
+  letter-spacing: clamp(2px, 0.7vw, 7px);
+  line-height: 1;
+  background: linear-gradient(180deg, #ffffff 0%, #8dffcf 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 3px 22px rgba(55, 217, 160, 0.3));
+}
+.hunter-wait-byline {
+  margin-top: 9px;
+  color: rgba(210, 230, 240, 0.72);
+  font-size: clamp(12px, 1.9vw, 16px);
+  font-weight: 700;
+}
+.hunter-wait-byline b {
+  color: var(--accent);
+  font-weight: 900;
+}
+
 .hunter-wait-eyebrow {
   display: inline-block;
-  margin-bottom: 14px;
-  padding: 7px 14px;
+  margin: clamp(20px, 3.4vh, 30px) 0 14px;
+  padding: 7px 16px;
   color: #04120d;
   background: linear-gradient(90deg, var(--accent), #8dffcf);
-  border-radius: 4px;
-  font-size: clamp(11px, 1.6vw, 13px);
+  border-radius: 999px;
+  font-size: clamp(10px, 1.5vw, 12px);
   font-weight: 900;
-  box-shadow: 0 0 24px rgba(55, 217, 160, 0.28);
+  letter-spacing: 2px;
+  box-shadow: 0 0 24px rgba(55, 217, 160, 0.3);
 }
 .hunter-wait-countdown {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: clamp(10px, 2vw, 16px);
-  margin: 0 auto clamp(14px, 3vh, 24px);
+  gap: clamp(8px, 1.6vw, 14px);
+  margin: 0 auto 6px;
   color: #f4fbff;
   line-height: 0.9;
-  text-shadow: 0 0 26px rgba(55, 217, 160, 0.36);
+  text-shadow: 0 0 30px rgba(55, 217, 160, 0.42);
 }
 .hunter-wait-countdown span {
-  font-size: clamp(58px, 13vw, 132px);
+  font-size: clamp(56px, 12vw, 120px);
   font-weight: 900;
 }
 .hunter-wait-countdown small {
   color: rgba(219, 238, 248, 0.82);
-  font-size: clamp(13px, 2.2vw, 22px);
+  font-size: clamp(12px, 2vw, 20px);
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.hunter-wait-sub {
+  color: rgba(200, 220, 232, 0.58);
+  font-size: clamp(11px, 1.7vw, 15px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+.hunter-wait-divider {
+  width: min(340px, 64%);
+  height: 1px;
+  margin: clamp(20px, 3.8vh, 32px) auto;
+  background: linear-gradient(90deg, transparent, rgba(82, 255, 190, 0.5), transparent);
 }
 .hunter-wait-copy {
-  max-width: 720px;
-  margin: 0 auto 10px;
-  color: #d9e6f1;
-  font-size: clamp(17px, 2.8vw, 30px);
-  font-weight: 800;
-  line-height: 1.18;
+  max-width: 640px;
+  margin: 0 auto 14px;
+  color: #dbe8f2;
+  font-size: clamp(16px, 2.5vw, 26px);
+  font-weight: 700;
+  line-height: 1.32;
   text-wrap: balance;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 .hunter-wait-url {
-  margin-top: 8px;
   color: var(--accent);
-  font-size: clamp(25px, 5.2vw, 54px);
+  font-size: clamp(24px, 5vw, 50px);
   font-weight: 900;
   line-height: 1.05;
   text-shadow: 0 0 18px rgba(55, 217, 160, 0.5), 0 0 44px rgba(55, 217, 160, 0.18);
   overflow-wrap: anywhere;
 }
 .hunter-wait-credit {
-  margin-top: clamp(18px, 3.6vh, 28px);
-  color: rgba(255, 236, 220, 0.9);
-  font-size: clamp(12px, 1.9vw, 18px);
-  font-weight: 800;
+  margin-top: clamp(12px, 2.4vh, 20px);
+  color: rgba(210, 230, 240, 0.6);
+  font-size: clamp(12px, 1.8vw, 16px);
+  font-weight: 700;
+}
+.hunter-wait-credit b {
+  color: rgba(255, 236, 220, 0.95);
+  font-weight: 900;
 }
 
 /* ---- Final-seconds countdown (shared: last 5s of Prep, last 3s of Hunt) ---- *

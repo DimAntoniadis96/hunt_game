@@ -68,7 +68,7 @@ export const SCORE_WRONG_SHOT_PENALTY = 25;
 export const FLASHBANG_RANGE = 7.0; // metres (3D). Close-range panic tool, but 4m
 // measured in 3D (incl. eye-height gap) almost never triggered in a real chase;
 // 7m reliably blinds a pursuer who's closing in without being a ranged stun.
-export const FLASHBANG_BLIND_MS = 4000; // seekers are blinded for 4 seconds
+export const FLASHBANG_BLIND_MS = 2000; // seekers are blinded for 2 seconds (fair escape window)
 export const FLASHBANG_COOLDOWN_MS = 18000; // prevents repeated chain-blinding
 
 /**

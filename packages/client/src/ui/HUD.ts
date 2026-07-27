@@ -64,14 +64,21 @@ export class HUD {
           <span class="map-tree map-tree-c"></span>
         </div>
         <div class="hunter-wait-panel">
+          <div class="hunter-wait-title">SAGA HUNTING</div>
+          <div class="hunter-wait-byline">A prop-hunt game by <b>D_anto</b></div>
+
           <div class="hunter-wait-eyebrow">SEEKER HOLD</div>
           <div class="hunter-wait-countdown" aria-label="Hunt begins in">
             <span data-r="hunterwaittimer">--</span>
             <small data-r="hunterwaitunit">seconds</small>
           </div>
-          <div class="hunter-wait-copy">If you want to study in a gamified way, try our site</div>
+          <div class="hunter-wait-sub">until the hunt begins</div>
+
+          <div class="hunter-wait-divider" aria-hidden="true"></div>
+
+          <div class="hunter-wait-copy">Studying, gamified — turn your revision into a game worth finishing.</div>
           <div class="hunter-wait-url">www.study-saga.com</div>
-          <div class="hunter-wait-credit">Made by D_anto from Zed Organization</div>
+          <div class="hunter-wait-credit">by <b>Zed Organization</b></div>
         </div>
       </div>
       <div class="finale" data-r="finale">
