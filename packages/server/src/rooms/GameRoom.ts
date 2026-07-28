@@ -538,7 +538,11 @@ export class GameRoom extends Room<{ state: GameState }> {
       this.state.huntersScore += SCORE_PER_PROP_KILL;
       // Everyone else sees "X killed Y"; the killer gets a guaranteed "You
       // eliminated Y" from their own ShotResult, so exclude them here (no dupe).
-      this.broadcast(ServerMessage.Killfeed, { text: `${attacker.name} killed ${victim.name}`, death: true }, { except: attackerClient });
+      this.broadcast(
+        ServerMessage.Killfeed,
+        { text: `${attacker.name} killed ${victim.name}`, death: true, killerName: attacker.name, victimName: victim.name, method: melee ? "axe" : "gun" },
+        { except: attackerClient },
+      );
       victimClient?.send(ServerMessage.Eliminated, { byId: attacker.id });
       this.checkRoundEnd();
     }

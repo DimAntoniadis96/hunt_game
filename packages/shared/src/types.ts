@@ -133,6 +133,13 @@ export interface KillfeedPayload {
   /** True only for an actual kill (plays a death sting); false for notices. */
   death?: boolean;
   wrong?: boolean;
+  /** Structured kill data so the client can render the CS-style banner
+   *  (killer → weapon → victim, role-coloured). Present only on real kills;
+   *  `text` remains the fallback for older clients / plain notices. */
+  killerName?: string;
+  victimName?: string;
+  /** How the kill landed, so the feed can show the right weapon glyph. */
+  method?: "gun" | "axe";
 }
 
 export interface TransformResultPayload {

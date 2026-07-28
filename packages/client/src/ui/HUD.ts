@@ -198,6 +198,39 @@ export class HUD {
     window.setTimeout(() => entry.remove(), 6000);
   }
 
+  /**
+   * A prominent CS-style kill banner: KILLER → [weapon] → VICTIM, role-coloured
+   * (hunter orange, prop teal). Names go in via textContent (never innerHTML),
+   * the weapon glyph is a fixed inline SVG. `mine` highlights the kills I made.
+   * Every kill in prop-hunt is hunter → prop, so the killer is always the
+   * hunter side and the victim always the prop side.
+   */
+  killEntry(killerName: string, victimName: string, method: "gun" | "axe" = "gun", mine = false) {
+    if (!killerName || !victimName) return;
+    const row = document.createElement("div");
+    row.className = mine ? "kill mine" : "kill";
+
+    const killer = document.createElement("span");
+    killer.className = "k-name k-hunter";
+    killer.textContent = killerName;
+
+    const weapon = document.createElement("span");
+    weapon.className = "k-weapon";
+    weapon.innerHTML = method === "axe" ? AXE_SVG : GUN_SVG;
+
+    const victim = document.createElement("span");
+    victim.className = "k-name k-prop";
+    victim.textContent = victimName;
+
+    row.append(killer, weapon, victim);
+    this.refs.killfeed.appendChild(row);
+    // Pop-in, then a short life so it reads like a CS kill feed.
+    void row.offsetWidth;
+    row.classList.add("in");
+    window.setTimeout(() => row.classList.add("out"), 5200);
+    window.setTimeout(() => row.remove(), 5600);
+  }
+
   fps(show: boolean, value: number) {
     this.refs.fps.classList.toggle("hidden", !show);
     if (show) this.refs.fps.textContent = `fps ${Math.round(value)}`;
@@ -273,3 +306,7 @@ export class HUD {
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
+
+// Fixed, self-contained weapon glyphs for the kill feed (no external assets).
+const GUN_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M2 9h13.5l1.2-2h4.1c.7 0 1.2.5 1.2 1.2V11c0 .6-.5 1-1 1h-2.3l-2 3.4a2 2 0 0 1-1.7 1H10a2 2 0 0 1-1.9-1.4L7.3 12H4a2 2 0 0 1-2-2V9Zm2.2 4h2l.5 1.6H6a1 1 0 0 1-1-.8L4.2 13Z"/></svg>`;
+const AXE_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M14.8 2.2c2.9.2 5.6 2 6.7 4.6.3.7-.5 1.3-1.1 1-1.6-.8-3.3-.6-4.5.5l-1.9-1.9c1-1.2 1.3-2.9.5-4.5-.3-.6.2-1.3.9-1.2ZM12.4 8.2l2 2-8.6 8.6a1.4 1.4 0 0 1-2-2L12.4 8.2Z"/></svg>`;

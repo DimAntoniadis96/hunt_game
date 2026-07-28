@@ -890,8 +890,13 @@ export class GameScene {
         // arrives — same message as the hitmarker), so the killer can never miss
         // their own kill even if the broadcast feed hiccups.
         if (m.killed) {
-          const victimName = (this.room.state as any).players?.get?.(m.targetId)?.name || "a hider";
-          this.hud.killfeed(`You eliminated ${victimName}`, true);
+          const players = (this.room.state as any).players;
+          const victimName = players?.get?.(m.targetId)?.name || "a hider";
+          const myName = players?.get?.(this.net.sessionId)?.name || "You";
+          // The reliable path: this direct result always reaches the shooter,
+          // so render the prominent kill banner right here — it can't be missed
+          // even if the broadcast feed hiccups.
+          this.hud.killEntry(myName, victimName, m.melee ? "axe" : "gun", true);
           this.audio.playOneOf(["death1", "death2"]);
         }
       } else if (m.decoy) {
@@ -924,8 +929,14 @@ export class GameScene {
       // ("X left"), and notices. Only an actual kill plays a death sting.
       // Falls back to the older {killerName, victimName} payload so the feed
       // still works if the server hasn't been restarted yet.
-      const text = m.text ?? (m.killerName && m.victimName ? `${m.killerName} killed ${m.victimName}` : "");
-      if (text) this.hud.killfeed(text);
+      if (m.killerName && m.victimName) {
+        // A real kill from someone else → the prominent CS-style banner.
+        this.hud.killEntry(m.killerName, m.victimName, m.method === "axe" ? "axe" : "gun", false);
+      } else {
+        // A notice (leave / rebuild) or an older server → plain corner line.
+        const text = m.text ?? "";
+        if (text) this.hud.killfeed(text);
+      }
       const isKill = m.death ?? !!m.killerName;
       if (isKill) this.audio.playOneOf(["death1", "death2"]);
     });
