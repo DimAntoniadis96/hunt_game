@@ -12,10 +12,10 @@
   "dependencies": {
     "@babylonjs/core": "^7.30.0",
     "@mimic/shared": "*",
-    "colyseus.js": "^0.16.22"
+    "colyseus.js": "^0.16.22",
+    "vite": "^8.1.5"
   },
   "devDependencies": {
-    "typescript": "^5.5.4",
-    "vite": "^8.1.5"
+    "typescript": "^5.5.4"
   }
 }
