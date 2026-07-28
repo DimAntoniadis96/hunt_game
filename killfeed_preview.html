@@ -18,7 +18,6 @@
     min-height: 100vh;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
     color: var(--text);
-    /* a faux game backdrop so the feed reads over "gameplay" */
     background:
       radial-gradient(1200px 600px at 70% -10%, #22384a, transparent),
       linear-gradient(160deg, #0d1420, #10202a 60%, #0b1118);
@@ -30,7 +29,7 @@
     background: rgba(0,0,0,0.35); padding: 12px 14px; border-radius: 10px;
     border: 1px solid var(--border);
   }
-  .controls { position: absolute; left: 20px; top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .controls { position: absolute; right: 20px; top: 18px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; max-width: 300px; }
   .controls button {
     font: inherit; font-weight: 700; font-size: 13px;
     color: #eaf2f8; background: rgba(255,255,255,0.08);
@@ -42,11 +41,11 @@
   .killfeed {
     position: absolute;
     top: 70px;
-    right: 18px;
+    left: 18px;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    align-items: flex-end;
+    align-items: flex-start;
   }
   .killfeed .entry {
     background: var(--panel);
@@ -58,12 +57,6 @@
     color: var(--text);
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
     animation: fade 6s forwards;
-  }
-  .killfeed .entry.you {
-    background: linear-gradient(180deg, rgba(55, 217, 160, 0.18), rgba(18, 24, 34, 0.92));
-    border-color: rgba(55, 217, 160, 0.7);
-    color: #d7fff0;
-    font-weight: 800;
   }
   .killfeed .kill {
     display: flex;
@@ -80,11 +73,11 @@
     letter-spacing: 0.2px;
     white-space: nowrap;
     opacity: 0;
-    transform: translateX(26px);
+    transform: translateX(-26px);
     transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.3);
   }
   .killfeed .kill.in { opacity: 1; transform: translateX(0); }
-  .killfeed .kill.out { opacity: 0; transform: translateX(26px); }
+  .killfeed .kill.out { opacity: 0; transform: translateX(-26px); }
   .killfeed .kill.mine {
     font-size: 18px;
     padding: 10px 15px;
@@ -101,6 +94,16 @@
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
   }
   .killfeed .kill.mine .k-weapon { color: #fff; }
+  .killfeed .kill.left {
+    border-left-color: #8a97a6;
+    background: linear-gradient(180deg, rgba(24, 30, 40, 0.96), rgba(12, 16, 23, 0.96));
+  }
+  .killfeed .kill.left .k-name { color: #cdd7e2; }
+  .killfeed .kill.left .k-weapon { color: #aab4c0; }
+  .killfeed .kill.left .k-tag {
+    color: #8a97a6; font-weight: 700; font-size: 0.82em;
+    letter-spacing: 0.4px; text-transform: uppercase;
+  }
   @keyframes fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; } }
 </style>
 </head>
@@ -109,14 +112,15 @@
     <div class="controls">
       <button onclick="myKill('gun')">My kill (gun)</button>
       <button onclick="myKill('axe')">My kill (axe)</button>
-      <button onclick="enemyKill('gun')">Enemy kill (gun)</button>
-      <button onclick="notice()">Leave notice</button>
+      <button onclick="enemyKill('gun')">Enemy kill</button>
+      <button onclick="leave()">Player left (suicide)</button>
     </div>
     <div class="killfeed" id="killfeed"></div>
     <div class="hint">
-      This is the exact DOM + CSS the in-game HUD uses (<code>HUD.killEntry</code>).
-      Orange = hunter (killer), teal = prop (victim). Your own kills are the
-      bigger, glowing orange banner. Click the buttons to replay them.
+      Exact DOM + CSS the in-game HUD uses. Now anchored <b>top-left</b>, clear of
+      the fps box. Orange = hunter (killer), teal = prop (victim); your own kills
+      are the bigger orange banner. A leave shows the same banner framed as a
+      self-out: <b>NAME 💀 suicide</b>. Click the buttons to replay them.
     </div>
   </div>
 
@@ -124,6 +128,7 @@
     const feed = document.getElementById("killfeed");
     const GUN_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M2 9h13.5l1.2-2h4.1c.7 0 1.2.5 1.2 1.2V11c0 .6-.5 1-1 1h-2.3l-2 3.4a2 2 0 0 1-1.7 1H10a2 2 0 0 1-1.9-1.4L7.3 12H4a2 2 0 0 1-2-2V9Zm2.2 4h2l.5 1.6H6a1 1 0 0 1-1-.8L4.2 13Z"/></svg>`;
     const AXE_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M14.8 2.2c2.9.2 5.6 2 6.7 4.6.3.7-.5 1.3-1.1 1-1.6-.8-3.3-.6-4.5.5l-1.9-1.9c1-1.2 1.3-2.9.5-4.5-.3-.6.2-1.3.9-1.2ZM12.4 8.2l2 2-8.6 8.6a1.4 1.4 0 0 1-2-2L12.4 8.2Z"/></svg>`;
+    const SKULL_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2c4.4 0 8 3.3 8 7.5 0 2.4-1.2 4.5-3 5.9V18a1.5 1.5 0 0 1-1.5 1.5H15V18a1 1 0 0 0-2 0v1.5h-2V18a1 1 0 0 0-2 0v1.5H8.5A1.5 1.5 0 0 1 7 18v-2.6c-1.8-1.4-3-3.5-3-5.9C4 5.3 7.6 2 12 2ZM8.8 9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Zm6.4 0a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z"/></svg>`;
 
     // Mirrors HUD.killEntry exactly.
     function killEntry(killerName, victimName, method = "gun", mine = false) {
@@ -139,6 +144,25 @@
       victim.className = "k-name k-prop";
       victim.textContent = victimName;
       row.append(killer, weapon, victim);
+      finish(row);
+    }
+    // Mirrors HUD.leaveEntry exactly.
+    function leaveEntry(name) {
+      const row = document.createElement("div");
+      row.className = "kill left";
+      const who = document.createElement("span");
+      who.className = "k-name";
+      who.textContent = name;
+      const skull = document.createElement("span");
+      skull.className = "k-weapon";
+      skull.innerHTML = SKULL_SVG;
+      const tag = document.createElement("span");
+      tag.className = "k-tag";
+      tag.textContent = "suicide";
+      row.append(who, skull, tag);
+      finish(row);
+    }
+    function finish(row) {
       feed.appendChild(row);
       void row.offsetWidth;
       row.classList.add("in");
@@ -148,18 +172,12 @@
 
     const myKill = (m) => killEntry("You", "sneaky_crate", m, true);
     const enemyKill = (m) => killEntry("hunterBob", "hidden_barrel", m, false);
-    function notice() {
-      const e = document.createElement("div");
-      e.className = "entry";
-      e.textContent = "someone left";
-      feed.appendChild(e);
-      setTimeout(() => e.remove(), 6000);
-    }
+    const leave = () => leaveEntry("000000");
 
     // Auto-demo on load.
     myKill("gun");
     setTimeout(() => enemyKill("gun"), 700);
-    setTimeout(() => myKill("axe"), 1400);
+    setTimeout(() => leave(), 1400);
   </script>
 </body>
 </html>

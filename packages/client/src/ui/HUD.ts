@@ -231,6 +231,36 @@ export class HUD {
     window.setTimeout(() => row.remove(), 5600);
   }
 
+  /**
+   * A player left mid-round → the same prominent banner, framed as a self-out:
+   * NAME 💀 SUICIDE. Muted grey so it reads differently from a real kill, but
+   * uses the identical layout/animation so it's just as visible.
+   */
+  leaveEntry(name: string) {
+    if (!name) return;
+    const row = document.createElement("div");
+    row.className = "kill left";
+
+    const who = document.createElement("span");
+    who.className = "k-name";
+    who.textContent = name;
+
+    const skull = document.createElement("span");
+    skull.className = "k-weapon";
+    skull.innerHTML = SKULL_SVG;
+
+    const tag = document.createElement("span");
+    tag.className = "k-tag";
+    tag.textContent = "suicide";
+
+    row.append(who, skull, tag);
+    this.refs.killfeed.appendChild(row);
+    void row.offsetWidth;
+    row.classList.add("in");
+    window.setTimeout(() => row.classList.add("out"), 5200);
+    window.setTimeout(() => row.remove(), 5600);
+  }
+
   fps(show: boolean, value: number) {
     this.refs.fps.classList.toggle("hidden", !show);
     if (show) this.refs.fps.textContent = `fps ${Math.round(value)}`;
@@ -310,3 +340,4 @@ function escapeHtml(s: string): string {
 // Fixed, self-contained weapon glyphs for the kill feed (no external assets).
 const GUN_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M2 9h13.5l1.2-2h4.1c.7 0 1.2.5 1.2 1.2V11c0 .6-.5 1-1 1h-2.3l-2 3.4a2 2 0 0 1-1.7 1H10a2 2 0 0 1-1.9-1.4L7.3 12H4a2 2 0 0 1-2-2V9Zm2.2 4h2l.5 1.6H6a1 1 0 0 1-1-.8L4.2 13Z"/></svg>`;
 const AXE_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M14.8 2.2c2.9.2 5.6 2 6.7 4.6.3.7-.5 1.3-1.1 1-1.6-.8-3.3-.6-4.5.5l-1.9-1.9c1-1.2 1.3-2.9.5-4.5-.3-.6.2-1.3.9-1.2ZM12.4 8.2l2 2-8.6 8.6a1.4 1.4 0 0 1-2-2L12.4 8.2Z"/></svg>`;
+const SKULL_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2c4.4 0 8 3.3 8 7.5 0 2.4-1.2 4.5-3 5.9V18a1.5 1.5 0 0 1-1.5 1.5H15V18a1 1 0 0 0-2 0v1.5h-2V18a1 1 0 0 0-2 0v1.5H8.5A1.5 1.5 0 0 1 7 18v-2.6c-1.8-1.4-3-3.5-3-5.9C4 5.3 7.6 2 12 2ZM8.8 9a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Zm6.4 0a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6Z"/></svg>`;

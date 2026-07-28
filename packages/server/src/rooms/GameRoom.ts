@@ -176,9 +176,9 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.state.players.delete(client.sessionId);
     this.meta.delete(client.sessionId);
     console.log(`[GameRoom] ${client.sessionId} removed`);
-    // Announce departures as a small corner feed line (not a center banner), the
-    // same place kills show up. Only mid-game — the lobby list updates itself.
-    if (midGame) this.broadcast(ServerMessage.Killfeed, { text: `${name} left`, death: false });
+    // Announce departures in the same kill-feed banner, framed as a self-out
+    // ("NAME 💀 suicide"). Only mid-game — the lobby list updates itself.
+    if (midGame) this.broadcast(ServerMessage.Killfeed, { text: `${name} left`, death: false, leaverName: name });
     // React to the new roster: a match needs both teams populated to continue.
     this.handleRosterChange();
   }

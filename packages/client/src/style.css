@@ -535,11 +535,11 @@ button:disabled {
 .killfeed {
   position: absolute;
   top: 70px;
-  right: 18px;
+  left: 18px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 .killfeed .entry {
   background: var(--panel);
@@ -578,7 +578,7 @@ button:disabled {
   letter-spacing: 0.2px;
   white-space: nowrap;
   opacity: 0;
-  transform: translateX(26px);
+  transform: translateX(-26px);
   transition: opacity 0.16s ease, transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.3);
 }
 .killfeed .kill.in {
@@ -587,7 +587,7 @@ button:disabled {
 }
 .killfeed .kill.out {
   opacity: 0;
-  transform: translateX(26px);
+  transform: translateX(-26px);
 }
 /* My own kill — bigger, brighter, a glow so it's impossible to miss. */
 .killfeed .kill.mine {
@@ -616,6 +616,24 @@ button:disabled {
 }
 .killfeed .kill.mine .k-weapon {
   color: #fff;
+}
+/* A player left mid-round → same banner, framed as a self-out (skull, muted). */
+.killfeed .kill.left {
+  border-left-color: #8a97a6;
+  background: linear-gradient(180deg, rgba(24, 30, 40, 0.96), rgba(12, 16, 23, 0.96));
+}
+.killfeed .kill.left .k-name {
+  color: #cdd7e2;
+}
+.killfeed .kill.left .k-weapon {
+  color: #aab4c0;
+}
+.killfeed .kill.left .k-tag {
+  color: #8a97a6;
+  font-weight: 700;
+  font-size: 0.82em;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
 }
 @keyframes fade {
   0%,

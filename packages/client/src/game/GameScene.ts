@@ -932,8 +932,11 @@ export class GameScene {
       if (m.killerName && m.victimName) {
         // A real kill from someone else → the prominent CS-style banner.
         this.hud.killEntry(m.killerName, m.victimName, m.method === "axe" ? "axe" : "gun", false);
+      } else if (m.leaverName) {
+        // A player bailed mid-round → same prominent banner, framed as a self-out.
+        this.hud.leaveEntry(m.leaverName);
       } else {
-        // A notice (leave / rebuild) or an older server → plain corner line.
+        // A system notice (rebuild) or an older server → plain corner line.
         const text = m.text ?? "";
         if (text) this.hud.killfeed(text);
       }

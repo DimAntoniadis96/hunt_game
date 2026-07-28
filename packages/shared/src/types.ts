@@ -140,6 +140,8 @@ export interface KillfeedPayload {
   victimName?: string;
   /** How the kill landed, so the feed can show the right weapon glyph. */
   method?: "gun" | "axe";
+  /** Set when a player left mid-round → renders as a "NAME 💀 suicide" banner. */
+  leaverName?: string;
 }
 
 export interface TransformResultPayload {
