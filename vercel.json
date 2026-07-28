@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
-  "buildCommand": "npm run build:shared && npm run build --workspace @mimic/client",
+  "buildCommand": "npm run build --workspace @mimic/shared && npm run build --workspace @mimic/client",
   "outputDirectory": "packages/client/dist",
   "framework": null
 }
