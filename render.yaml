@@ -1,0 +1,27 @@
+# Render Blueprint — deploys the MimicHunt Colyseus game server as a Docker
+# web service. Import this from the Render dashboard (New → Blueprint) after
+# connecting your GitHub repo, or configure the same settings by hand.
+#
+# The client is NOT deployed here — it goes on Vercel (see DEPLOY.md).
+services:
+  - type: web
+    name: mimichunt-server
+    runtime: docker
+    # Build the server image from the existing multi-stage Dockerfile. The build
+    # context is the repo root so it can copy the shared workspace too.
+    dockerfilePath: ./packages/server/Dockerfile
+    dockerContext: .
+    plan: free
+    # Render restarts the container if this probe fails; the server exposes it.
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Do NOT set PORT — Render injects its own PORT and the server reads it.
+      #
+      # CORS_ORIGIN must list your client's public origin(s), comma-separated.
+      # Leave it unset for the very first deploy, then set it to your Vercel URL
+      # (e.g. https://mimichunt.vercel.app) in the dashboard and redeploy.
+      - key: CORS_ORIGIN
+        sync: false
