@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tutorial preview — MimicHunt</title>
+<style>
+  :root {
+    --accent: #37d9a0;
+    --accent-2: #ff7043;
+    --panel: #12181f;
+    --border: rgba(255, 255, 255, 0.14);
+    --text: #e8eef5;
+    --muted: #9fb3c4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    background: radial-gradient(1000px 500px at 60% -10%, #22384a, transparent), linear-gradient(160deg, #0d1420, #0b1118);
+    display: grid; place-items: center;
+  }
+  .hint { position: fixed; left: 16px; bottom: 14px; color: #9fb3c4; font-size: 13px; }
+
+  /* --- copied from packages/client/src/style.css --- */
+  .keygrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0 4px; }
+  .keychip { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+  .keychip kbd { font-family: ui-monospace, monospace; font-size: 11px; color: var(--text); background: #0b0f16; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px; min-width: 30px; text-align: center; flex: 0 0 auto; }
+
+  .tutorial { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(4,8,14,0.72); backdrop-filter: blur(4px); }
+  .tut-card { position: relative; width: 100%; max-width: 440px; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 26px 24px 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.6); animation: tut-in .22s cubic-bezier(0.2,0.9,0.3,1.2); }
+  @keyframes tut-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .tut-close { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 8px; background: transparent; border: 1px solid transparent; color: var(--muted); font-size: 14px; cursor: pointer; }
+  .tut-close:hover { color: var(--text); border-color: var(--border); }
+  .tut-eyebrow { color: var(--accent); font-weight: 800; font-size: 12px; letter-spacing: .6px; text-transform: uppercase; }
+  .tut-title { margin: 6px 0 12px; font-size: 22px; font-weight: 800; color: var(--text); }
+  .tut-body { min-height: 172px; }
+  .tut-lead { color: var(--text); font-size: 14.5px; line-height: 1.5; margin: 0 0 12px; }
+  .tut-note { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 12px 0 0; }
+  .tut-note b { color: var(--text); }
+  .tut-roles { display: grid; gap: 10px; margin: 4px 0; }
+  .tut-role { display: flex; flex-direction: column; gap: 3px; padding: 11px 13px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-left-width: 3px; }
+  .tut-role b { font-size: 14px; }
+  .tut-role span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .tut-role.role-props { border-left-color: var(--accent); }
+  .tut-role.role-props b { color: var(--accent); }
+  .tut-role.role-hunters { border-left-color: var(--accent-2); }
+  .tut-role.role-hunters b { color: var(--accent-2); }
+  .tut-keys { grid-template-columns: 1fr; gap: 9px; }
+  .tut-keys .keychip { font-size: 13px; }
+  .tut-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+  .tut-dots { display: flex; gap: 7px; }
+  .tut-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .15s, width .15s; }
+  .tut-dot.on { background: var(--accent); width: 18px; border-radius: 4px; }
+  .tut-actions { display: flex; align-items: center; gap: 8px; }
+  .ghost { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 12px; cursor: pointer; font-weight: 700; }
+  .tut-next { padding: 9px 16px; border-radius: 10px; border: none; cursor: pointer; font-weight: 800; font-size: 14px; color: #04120c; background: linear-gradient(135deg, var(--accent), #23b981); }
+  .tut-next:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="tutorial" id="tut">
+    <div class="tut-card">
+      <button class="tut-close" onclick="location.reload()" aria-label="Close">✕</button>
+      <div class="tut-eyebrow" id="tlabel">Step 1</div>
+      <h2 class="tut-title" id="ttitle"></h2>
+      <div class="tut-body" id="tbody"></div>
+      <div class="tut-foot">
+        <div class="tut-dots" id="tdots"></div>
+        <div class="tut-actions">
+          <button class="ghost" id="tback">Back</button>
+          <button class="tut-next" id="tnext"><span id="tnextlabel">Next</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="hint">This is exactly what new players see. Use Back / Next; the dot row shows progress.</div>
+
+  <script>
+    const MIN = 2;
+    const STEPS = [
+      { title: "Welcome to MimicHunt", body: `
+        <p class="tut-lead">It's hide-and-seek with weapons. Every round you're randomly put on one of two teams:</p>
+        <div class="tut-roles">
+          <div class="tut-role role-props"><b>Props</b><span>Disguise as furniture and survive until the timer runs out.</span></div>
+          <div class="tut-role role-hunters"><b>Hunters</b><span>Track down and eliminate every prop before time's up.</span></div>
+        </div>
+        <p class="tut-note">Teams flip between rounds, so you'll get to play both sides.</p>` },
+      { title: "Hiding as a Prop", body: `
+        <p class="tut-lead">Blend into the room and don't get caught.</p>
+        <div class="keygrid tut-keys">
+          <div class="keychip"><kbd>E</kbd><span>Disguise as the object you're looking at</span></div>
+          <div class="keychip"><kbd>R</kbd><span>Lock your rotation so you sit still &amp; natural</span></div>
+          <div class="keychip"><kbd>F</kbd><span>Drop a decoy — a fake clone to bait hunters</span></div>
+          <div class="keychip"><kbd>T</kbd><span>Flash — briefly blind nearby hunters</span></div>
+        </div>
+        <p class="tut-note">Tip: pick a spot near objects like your disguise, hold still, and save your decoy for when a hunter closes in.</p>` },
+      { title: "Hunting as a Hunter", body: `
+        <p class="tut-lead">Find the hidden props before the clock hits zero.</p>
+        <div class="keygrid tut-keys">
+          <div class="keychip"><kbd>Click</kbd><span>Shoot the object you suspect is a prop</span></div>
+          <div class="keychip"><kbd>R</kbd><span>Reload your weapon</span></div>
+          <div class="keychip"><kbd>F</kbd><span>Swing your axe when you're out of ammo</span></div>
+        </div>
+        <p class="tut-note">Tip: shooting the wrong object wastes ammo — look for things that seem out of place, and listen for prop whistles.</p>` },
+      { title: "Controls & Getting Started", body: `
+        <div class="keygrid tut-keys">
+          <div class="keychip"><kbd>W A S D</kbd><span>Move</span></div>
+          <div class="keychip"><kbd>Mouse</kbd><span>Look around</span></div>
+          <div class="keychip"><kbd>Space</kbd><span>Jump</span></div>
+          <div class="keychip"><kbd>Tab</kbd><span>Scoreboard</span></div>
+          <div class="keychip"><kbd>Esc</kbd><span>Menu / free the mouse</span></div>
+        </div>
+        <p class="tut-lead" style="margin-top:14px">Ready to jump in?</p>
+        <p class="tut-note"><b>Quick Play</b> drops you into a public match. To play with friends, hit <b>Create private room</b> and share the room code. A round needs at least ${MIN} players to start.</p>` },
+    ];
+    let step = 0;
+    function render() {
+      document.getElementById("tlabel").textContent = `Step ${step + 1} of ${STEPS.length}`;
+      document.getElementById("ttitle").textContent = STEPS[step].title;
+      document.getElementById("tbody").innerHTML = STEPS[step].body;
+      document.getElementById("tdots").innerHTML = STEPS.map((_, i) => `<span class="tut-dot${i === step ? " on" : ""}"></span>`).join("");
+      document.getElementById("tback").style.visibility = step === 0 ? "hidden" : "visible";
+      document.getElementById("tnextlabel").textContent = step >= STEPS.length - 1 ? "Got it — let's play!" : "Next";
+    }
+    document.getElementById("tback").onclick = () => { if (step > 0) { step--; render(); } };
+    document.getElementById("tnext").onclick = () => { if (step >= STEPS.length - 1) location.reload(); else { step++; render(); } };
+    render();
+  </script>
+</body>
+</html>

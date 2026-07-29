@@ -25,6 +25,9 @@ export class Screens {
   private menu: HTMLElement;
   private lobby: HTMLElement;
   private overlay: HTMLElement;
+  private tutorial!: HTMLElement;
+  private tutStep = 0;
+  private tutAutoShown = false;
 
   onConnect?: (mode: ConnectMode) => void;
   onReady?: (ready: boolean) => void;
@@ -65,20 +68,10 @@ export class Screens {
 
         <div class="error" data-r="err"></div>
 
-        <details class="controls">
-          <summary>How to play &amp; controls</summary>
-          <div class="keygrid">
-            <div class="keychip"><kbd>W A S D</kbd><span>Move</span></div>
-            <div class="keychip"><kbd>Mouse</kbd><span>Look around</span></div>
-            <div class="keychip"><kbd>Space</kbd><span>Jump</span></div>
-            <div class="keychip"><kbd>E</kbd><span>Disguise · props</span></div>
-            <div class="keychip"><kbd>F</kbd><span>Decoy · props</span></div>
-            <div class="keychip"><kbd>T</kbd><span>Flash · props</span></div>
-            <div class="keychip"><kbd>R</kbd><span>Reload / Lock</span></div>
-            <div class="keychip"><kbd>Click</kbd><span>Shoot · hunters</span></div>
-            <div class="keychip"><kbd>Tab</kbd><span>Scores</span></div>
-          </div>
-        </details>
+        <button class="howto-btn" data-a="howto">
+          <span class="howto-badge" aria-hidden="true">?</span>
+          <span class="howto-text">How to Play<small>New here? A 30-second guide</small></span>
+        </button>
       </div>`;
 
     this.lobby = document.createElement("div");
@@ -107,9 +100,14 @@ export class Screens {
     this.overlay = document.createElement("div");
     this.overlay.className = "overlay hidden";
 
+    this.tutorial = document.createElement("div");
+    this.tutorial.className = "tutorial hidden";
+
     root.appendChild(this.menu);
     root.appendChild(this.lobby);
     root.appendChild(this.overlay);
+    root.appendChild(this.tutorial);
+    this.buildTutorial();
 
     const nameInput = this.menu.querySelector<HTMLInputElement>("#name")!;
     nameInput.value = loadName();
@@ -141,6 +139,7 @@ export class Screens {
       if (n) this.onConnect?.({ kind: "join", name: n, code });
     });
     this.menu.querySelector('[data-a="settings"]')!.addEventListener("click", () => this.onSettings?.());
+    this.menu.querySelector('[data-a="howto"]')!.addEventListener("click", () => this.openTutorial());
 
     const readyBtn = this.lobby.querySelector<HTMLButtonElement>('[data-a="ready"]')!;
     readyBtn.addEventListener("click", () => {
@@ -173,6 +172,77 @@ export class Screens {
     this.lobby.classList.add("hidden");
     this.overlay.classList.add("hidden");
     this.error("");
+    this.maybeAutoTutorial();
+  }
+
+  // ---- New-player tutorial ------------------------------------------------
+
+  private buildTutorial() {
+    this.tutorial.innerHTML = `
+      <div class="tut-card" role="dialog" aria-modal="true" aria-label="How to play MimicHunt">
+        <button class="tut-close" data-a="tclose" aria-label="Close tutorial">✕</button>
+        <div class="tut-eyebrow" data-r="tlabel">Step 1</div>
+        <h2 class="tut-title" data-r="ttitle"></h2>
+        <div class="tut-body" data-r="tbody"></div>
+        <div class="tut-foot">
+          <div class="tut-dots" data-r="tdots"></div>
+          <div class="tut-actions">
+            <button class="ghost" data-a="tback">Back</button>
+            <button class="tut-next" data-a="tnext"><span data-r="tnextlabel">Next</span></button>
+          </div>
+        </div>
+      </div>`;
+    this.tutorial.querySelector('[data-a="tclose"]')!.addEventListener("click", () => this.closeTutorial());
+    this.tutorial.querySelector('[data-a="tback"]')!.addEventListener("click", () => {
+      if (this.tutStep > 0) {
+        this.tutStep--;
+        this.renderTutorial();
+      }
+    });
+    this.tutorial.querySelector('[data-a="tnext"]')!.addEventListener("click", () => {
+      if (this.tutStep >= TUTORIAL_STEPS.length - 1) this.closeTutorial();
+      else {
+        this.tutStep++;
+        this.renderTutorial();
+      }
+    });
+    // Clicking the dimmed backdrop (outside the card) dismisses it.
+    this.tutorial.addEventListener("click", (e) => {
+      if (e.target === this.tutorial) this.closeTutorial();
+    });
+  }
+
+  private renderTutorial() {
+    const step = TUTORIAL_STEPS[this.tutStep];
+    const total = TUTORIAL_STEPS.length;
+    this.tutorial.querySelector<HTMLElement>('[data-r="tlabel"]')!.textContent = `Step ${this.tutStep + 1} of ${total}`;
+    this.tutorial.querySelector<HTMLElement>('[data-r="ttitle"]')!.textContent = step.title;
+    this.tutorial.querySelector<HTMLElement>('[data-r="tbody"]')!.innerHTML = step.body;
+    this.tutorial.querySelector<HTMLElement>('[data-r="tdots"]')!.innerHTML = TUTORIAL_STEPS.map(
+      (_, i) => `<span class="tut-dot${i === this.tutStep ? " on" : ""}"></span>`,
+    ).join("");
+    const back = this.tutorial.querySelector<HTMLButtonElement>('[data-a="tback"]')!;
+    back.style.visibility = this.tutStep === 0 ? "hidden" : "visible";
+    this.tutorial.querySelector<HTMLElement>('[data-r="tnextlabel"]')!.textContent =
+      this.tutStep >= total - 1 ? "Got it — let's play!" : "Next";
+  }
+
+  openTutorial(step = 0) {
+    this.tutStep = step;
+    this.renderTutorial();
+    this.tutorial.classList.remove("hidden");
+  }
+
+  private closeTutorial() {
+    this.tutorial.classList.add("hidden");
+    markTutorialSeen();
+  }
+
+  /** Auto-open the tutorial the very first time a new player reaches the menu. */
+  private maybeAutoTutorial() {
+    if (this.tutAutoShown) return;
+    this.tutAutoShown = true;
+    if (!hasSeenTutorial()) this.openTutorial();
   }
 
   showConnecting(text = "Connecting…") {
@@ -248,3 +318,69 @@ export class Screens {
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 }
+
+function hasSeenTutorial(): boolean {
+  try {
+    return localStorage.getItem("mimic:tutorialSeen") === "1";
+  } catch {
+    return false;
+  }
+}
+function markTutorialSeen() {
+  try {
+    localStorage.setItem("mimic:tutorialSeen", "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** New-player walkthrough. All content is static & author-controlled (safe to
+ *  render as HTML). Keys mirror the real bindings in the game. */
+const TUTORIAL_STEPS: { title: string; body: string }[] = [
+  {
+    title: "Welcome to MimicHunt",
+    body: `
+      <p class="tut-lead">It's hide-and-seek with weapons. Every round you're randomly put on one of two teams:</p>
+      <div class="tut-roles">
+        <div class="tut-role role-props"><b>Props</b><span>Disguise as furniture and survive until the timer runs out.</span></div>
+        <div class="tut-role role-hunters"><b>Hunters</b><span>Track down and eliminate every prop before time's up.</span></div>
+      </div>
+      <p class="tut-note">Teams flip between rounds, so you'll get to play both sides.</p>`,
+  },
+  {
+    title: "Hiding as a Prop",
+    body: `
+      <p class="tut-lead">Blend into the room and don't get caught.</p>
+      <div class="keygrid tut-keys">
+        <div class="keychip"><kbd>E</kbd><span>Disguise as the object you're looking at</span></div>
+        <div class="keychip"><kbd>R</kbd><span>Lock your rotation so you sit still &amp; natural</span></div>
+        <div class="keychip"><kbd>F</kbd><span>Drop a decoy — a fake clone to bait hunters</span></div>
+        <div class="keychip"><kbd>T</kbd><span>Flash — briefly blind nearby hunters</span></div>
+      </div>
+      <p class="tut-note">Tip: pick a spot near objects like your disguise, hold still, and save your decoy for when a hunter closes in.</p>`,
+  },
+  {
+    title: "Hunting as a Hunter",
+    body: `
+      <p class="tut-lead">Find the hidden props before the clock hits zero.</p>
+      <div class="keygrid tut-keys">
+        <div class="keychip"><kbd>Click</kbd><span>Shoot the object you suspect is a prop</span></div>
+        <div class="keychip"><kbd>R</kbd><span>Reload your weapon</span></div>
+        <div class="keychip"><kbd>F</kbd><span>Swing your axe when you're out of ammo</span></div>
+      </div>
+      <p class="tut-note">Tip: shooting the wrong object wastes ammo — look for things that seem out of place, and listen for prop whistles.</p>`,
+  },
+  {
+    title: "Controls & Getting Started",
+    body: `
+      <div class="keygrid tut-keys">
+        <div class="keychip"><kbd>W A S D</kbd><span>Move</span></div>
+        <div class="keychip"><kbd>Mouse</kbd><span>Look around</span></div>
+        <div class="keychip"><kbd>Space</kbd><span>Jump</span></div>
+        <div class="keychip"><kbd>Tab</kbd><span>Scoreboard</span></div>
+        <div class="keychip"><kbd>Esc</kbd><span>Menu / free the mouse</span></div>
+      </div>
+      <p class="tut-lead" style="margin-top:14px">Ready to jump in?</p>
+      <p class="tut-note"><b>Quick Play</b> drops you into a public match. To play with friends, hit <b>Create private room</b> and share the room code. A round needs at least ${MIN_PLAYERS_TO_START} players to start.</p>`,
+  },
+];

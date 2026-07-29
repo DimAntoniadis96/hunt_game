@@ -341,6 +341,221 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+/* ---- "How to Play" button (menu) ---- */
+.howto-btn {
+  margin-top: 16px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.howto-btn:hover {
+  border-color: var(--accent);
+  background: rgba(55, 217, 160, 0.06);
+}
+.howto-badge {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #23b981);
+  color: #04120c;
+  font-weight: 900;
+  font-size: 16px;
+}
+.howto-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  font-weight: 700;
+  font-size: 14px;
+}
+.howto-text small {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ---- New-player tutorial modal ---- */
+.tutorial {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(4, 8, 14, 0.72);
+  backdrop-filter: blur(4px);
+}
+.tutorial.hidden {
+  display: none;
+}
+.tut-card {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: var(--panel, #12181f);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 26px 24px 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  animation: tut-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes tut-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tut-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.tut-close:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+.tut-eyebrow {
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+.tut-title {
+  margin: 6px 0 12px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+}
+.tut-body {
+  min-height: 172px;
+}
+.tut-lead {
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+.tut-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+.tut-note b {
+  color: var(--text);
+}
+.tut-roles {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0;
+}
+.tut-role {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+}
+.tut-role b {
+  font-size: 14px;
+}
+.tut-role span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.tut-role.role-props {
+  border-left-color: var(--accent);
+}
+.tut-role.role-props b {
+  color: var(--accent);
+}
+.tut-role.role-hunters {
+  border-left-color: var(--accent-2);
+}
+.tut-role.role-hunters b {
+  color: var(--accent-2);
+}
+.tut-keys {
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+.tut-keys .keychip {
+  font-size: 13px;
+}
+.tut-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.tut-dots {
+  display: flex;
+  gap: 7px;
+}
+.tut-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.15s ease, width 0.15s ease;
+}
+.tut-dot.on {
+  background: var(--accent);
+  width: 18px;
+  border-radius: 4px;
+}
+.tut-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tut-next {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 14px;
+  color: #04120c;
+  background: linear-gradient(135deg, var(--accent), #23b981);
+  transition: filter 0.15s ease;
+}
+.tut-next:hover {
+  filter: brightness(1.08);
+}
+
 /* ---- Lobby ---- */
 .lobby-players {
   list-style: none;
