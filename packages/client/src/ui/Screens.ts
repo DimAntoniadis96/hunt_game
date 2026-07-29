@@ -42,7 +42,7 @@ export class Screens {
     this.menu.className = "screen";
     this.menu.innerHTML = `
       <div class="card menu-card">
-        <div class="brand"><h1>Mimic<span class="dot">Hunt</span></h1></div>
+        <div class="brand"><h1>Hunting <span class="dot">Saga</span></h1></div>
         <p class="tagline">Hide as furniture, or hunt the impostors — a fast browser prop-hunt.</p>
 
         <div class="step"><span class="step-num">1</span><label for="name">Choose your name</label></div>
@@ -179,7 +179,7 @@ export class Screens {
 
   private buildTutorial() {
     this.tutorial.innerHTML = `
-      <div class="tut-card" role="dialog" aria-modal="true" aria-label="How to play MimicHunt">
+      <div class="tut-card" role="dialog" aria-modal="true" aria-label="How to play Hunting Saga">
         <button class="tut-close" data-a="tclose" aria-label="Close tutorial">✕</button>
         <div class="tut-eyebrow" data-r="tlabel">Step 1</div>
         <h2 class="tut-title" data-r="ttitle"></h2>
@@ -338,7 +338,7 @@ function markTutorialSeen() {
  *  render as HTML). Keys mirror the real bindings in the game. */
 const TUTORIAL_STEPS: { title: string; body: string }[] = [
   {
-    title: "Welcome to MimicHunt",
+    title: "Welcome to Hunting Saga",
     body: `
       <p class="tut-lead">It's hide-and-seek with weapons. Every round you're randomly put on one of two teams:</p>
       <div class="tut-roles">

@@ -1,4 +1,4 @@
-# Deploying MimicHunt so you can play with friends
+# Deploying Hunting Saga so you can play with friends
 
 Your game has **two parts** that get hosted in **two different places**:
 
@@ -67,9 +67,9 @@ just run `git push`.)
    minutes the first time).
 6. When it's live, copy your server URL from the top of the page. It looks like:
    ```
-   https://mimichunt-server.onrender.com
+   https://hunting-saga-server.onrender.com
    ```
-   Quick check: open `https://mimichunt-server.onrender.com/health` in a
+   Quick check: open `https://hunting-saga-server.onrender.com/health` in a
    browser — you should see `{"ok":true,...}`.
 
 > **Note about the free tier:** the server "goes to sleep" after ~15 minutes
@@ -95,7 +95,7 @@ just run `git push`.)
    - **Value:** your Render URL from Step 1, but with `wss://` instead of
      `https://`:
      ```
-     wss://mimichunt-server.onrender.com
+     wss://hunting-saga-server.onrender.com
      ```
      (`wss` = secure WebSocket. This is important — `https` won't work here.)
 5. Click **Deploy** and wait for it to finish. Your game URL will look like:

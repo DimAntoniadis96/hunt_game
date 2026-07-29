@@ -1,4 +1,4 @@
-# MimicHunt — Architecture (Phase 1)
+# Hunting Saga — Architecture (Phase 1)
 
 _A browser-based, authoritative-server multiplayer prop-hunt game. Original name,
 art, maps, audio, and assets._

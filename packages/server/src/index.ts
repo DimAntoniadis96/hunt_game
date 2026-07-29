@@ -81,7 +81,7 @@ gameServer.define("game", GameRoom).filterBy(["mode"]);
 gameServer
   .listen(PORT)
   .then(() => {
-    console.log(`[server] MimicHunt listening on :${PORT} (${NODE_ENV})`);
+    console.log(`[server] Hunting Saga listening on :${PORT} (${NODE_ENV})`);
     console.log(`[server] allowed origins: ${allowedOrigins.join(", ")}`);
   })
   .catch((err) => {

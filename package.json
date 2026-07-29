@@ -2,7 +2,7 @@
   "name": "hunt-game",
   "version": "0.1.0",
   "private": true,
-  "description": "MimicHunt — a browser-based multiplayer prop-hunt game (authoritative server).",
+  "description": "Hunting Saga — a browser-based multiplayer prop-hunt game (authoritative server).",
   "workspaces": [
     "packages/shared",
     "packages/server",

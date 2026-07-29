@@ -392,6 +392,10 @@ button:disabled {
   position: fixed;
   inset: 0;
   z-index: 50;
+  /* Capture ALL clicks so nothing on the blurred menu behind can be pressed
+     while the tutorial is open (the #ui-root container is pointer-events:none,
+     so this overlay must explicitly re-enable them to act as a modal). */
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: center;

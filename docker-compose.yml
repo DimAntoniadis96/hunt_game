@@ -1,11 +1,11 @@
-# Local / single-node deployment of the MimicHunt game server.
+# Local / single-node deployment of the Hunting Saga game server.
 # Build the client separately (npm run build) and host packages/client/dist on a CDN.
 services:
   game-server:
     build:
       context: .
       dockerfile: packages/server/Dockerfile
-    image: mimichunt-server:latest
+    image: hunting-saga-server:latest
     ports:
       - "2567:2567"
     environment:

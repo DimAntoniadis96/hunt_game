@@ -1,4 +1,4 @@
-# MimicHunt 🎭
+# Hunting Saga 🎭
 
 A polished, **browser-based multiplayer prop-hunt** game. Props disguise as
 warehouse objects; hunters track them down. Runs from a URL in a modern desktop
