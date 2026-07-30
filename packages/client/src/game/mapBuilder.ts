@@ -16,6 +16,25 @@ import { BACKYARD_HEDGES, PROP_MODELS, type MapDefinition, type Occluder } from 
 
 const matCache = new Map<string, StandardMaterial>();
 
+/**
+ * Drop every cached material/texture.
+ *
+ * These caches are module-scoped so one map build can share ~100 materials
+ * across ~500 meshes. But a cached material belongs to the Scene (and the WebGL
+ * context) it was created in, and `GameScene.dispose()` tears down BOTH the
+ * scene and the engine. If the caches survived that, the next match would hand
+ * out materials whose compiled shader program belongs to a destroyed context —
+ * which throws "Cannot read properties of null (reading 'program')" inside
+ * Engine.bindSamplers the first time the new scene renders.
+ *
+ * Must be called whenever the scene that populated these caches is disposed.
+ */
+export function resetMapCaches(): void {
+  matCache.clear();
+  texCache.clear();
+  texMatCache.clear();
+}
+
 function mat(scene: Scene, hex: string, emissive = 0.16): StandardMaterial {
   const key = `${hex}:${emissive}`;
   const cached = matCache.get(key);

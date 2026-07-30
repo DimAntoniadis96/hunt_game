@@ -23,6 +23,7 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -61,6 +62,7 @@ body {
   border-radius: 20px;
   padding: 30px 30px 26px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -401,6 +403,7 @@ button:disabled {
   justify-content: center;
   padding: 20px;
   background: rgba(4, 8, 14, 0.72);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .tutorial.hidden {
@@ -606,6 +609,50 @@ button:disabled {
   text-align: center;
   color: var(--accent);
   text-shadow: 0 0 18px rgba(55, 217, 160, 0.3);
+  /* now a <button>: reset UA styling, keep the original look */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
+}
+.code-pill:hover {
+  border-style: solid;
+  background: linear-gradient(180deg, rgba(55, 217, 160, 0.12), #0b0f16);
+}
+.code-pill:active {
+  transform: translateY(1px);
+}
+.code-pill .code-copy {
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-shadow: none;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.code-pill:hover .code-copy {
+  color: var(--accent);
+  border-color: rgba(55, 217, 160, 0.5);
+}
+.code-pill.copied {
+  border-style: solid;
+  border-color: var(--accent);
+}
+.code-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+.code-hint.ok {
+  color: var(--accent);
 }
 
 /* ---- HUD ---- */
@@ -989,6 +1036,7 @@ button:disabled {
   visibility: hidden;
   transition: opacity 0.2s ease;
   background: rgba(6, 10, 16, 0.72);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 .rebuild-screen.show {
@@ -1494,6 +1542,7 @@ button:disabled {
   color: #e7eef6;
   white-space: nowrap;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   opacity: 0;
   transform: translate(-50%, 10px);
@@ -1726,6 +1775,7 @@ th {
   justify-content: center;
   pointer-events: auto;
   background: rgba(5, 8, 12, 0.7);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   padding: 18px;
 }
@@ -1907,4 +1957,16 @@ body.reduce-motion *::after {
   .settings-foot button {
     width: 100%;
   }
+}
+
+/* Explanatory line on the click-to-play overlay (e.g. after a denied lock). */
+.play-prompt .play-note {
+  margin: 6px 0 2px;
+  padding: 7px 12px;
+  border: 1px solid rgba(239, 83, 80, 0.5);
+  border-radius: 8px;
+  background: rgba(239, 83, 80, 0.1);
+  color: #ffb4ae;
+  font-size: 13.5px;
+  font-weight: 600;
 }

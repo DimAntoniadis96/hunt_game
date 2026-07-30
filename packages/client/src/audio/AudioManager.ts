@@ -44,7 +44,31 @@ export type Music = "music_lobby" | "music_hide" | "music_hunt";
  * Multiple candidate extensions are tried so both .mp3 and .ogg/.wav drops work.
  */
 const SAMPLE_BASE = "audio/";
-const SAMPLE_EXTS = ["ogg", "mp3", "wav"];
+
+/**
+ * Pick the audio container this browser can actually decode, once, up front.
+ *
+ * Safari could not decode the Ogg *container* until 18.4 (March 2025), and the
+ * macOS versions capped at Safari 15.6/16.6/17.6 never will. Probing beats
+ * trying-and-failing: a failed `decodeAudioData` still costs a full download
+ * plus a decode attempt per sample, so on Safari the old ogg-first order burned
+ * 24 wasted fetches and then silently fell back to the synth voices.
+ *
+ * AAC-in-MP4 (.m4a) decodes everywhere; Ogg Vorbis is kept first where it works
+ * because those files are already shipped and slightly smaller.
+ */
+function pickAudioExts(): string[] {
+  try {
+    const probe = document.createElement("audio");
+    const canOgg = !!probe.canPlayType('audio/ogg; codecs="vorbis"');
+    return canOgg ? ["ogg", "m4a", "mp3", "wav"] : ["m4a", "mp3", "wav", "ogg"];
+  } catch {
+    return ["m4a", "mp3", "wav", "ogg"];
+  }
+}
+const SAMPLE_EXTS = pickAudioExts();
+/** The container to use for the streamed <audio> music elements. */
+const MUSIC_EXT = SAMPLE_EXTS[0];
 /** Target playback volume for looping music (sits well under the SFX bus). */
 const MUSIC_VOLUME = 0.28;
 /** Crossfade time between music tracks (seconds). */
@@ -194,10 +218,47 @@ export class AudioManager {
       el.loop = true;
       el.preload = "auto";
       el.volume = 0;
-      // Try the same extension order the sample loader uses; the browser picks
-      // the first that decodes. If none exist the element simply never plays.
-      el.src = `${SAMPLE_BASE}${name}.ogg`;
+      // Use the container this browser can decode (see pickAudioExts). The old
+      // code hardcoded .ogg with no fallback, so Safari got silence.
+      el.src = `${SAMPLE_BASE}${name}.${MUSIC_EXT}`;
       this.musicEls.set(name, el);
+
+      // Consume the user gesture we're currently inside of.
+      //
+      // Chrome/Firefox treat autoplay permission as document-wide once the user
+      // has interacted, so creating the element here was enough. WebKit tracks
+      // it PER ELEMENT: an <audio> that has never been played during a gesture
+      // stays blocked when play() is called later — and our first real play()
+      // comes from a server phase change, which carries no user activation.
+      // A muted play/pause here marks the element as user-activated.
+      // (`volume = 0` would NOT do it; WebKit checks `muted`.)
+      el.muted = true;
+      const primed = el.play();
+      if (primed && typeof primed.then === "function") {
+        primed
+          .then(() => {
+            // setMusic() may already have started this very track while the
+            // priming promise was in flight — pausing it here would kill the
+            // music we just asked for. Only stop it if it isn't the live one.
+            if (this.currentMusic !== name) {
+              el.pause();
+              try {
+                el.currentTime = 0;
+              } catch {
+                /* not seekable yet — harmless, playback starts from 0 anyway */
+              }
+            }
+            el.muted = false;
+          })
+          .catch(() => {
+            // Blocked anyway (or the file is missing). Un-mute so a later
+            // gesture-driven play() can still be heard.
+            el.muted = false;
+          });
+      } else {
+        el.pause();
+        el.muted = false;
+      }
     }
   }
 

@@ -34,7 +34,7 @@ import type { AudioManager } from "../audio/AudioManager";
 import type { HUD } from "../ui/HUD";
 import type { GameSettings } from "../settings/GameSettings";
 import { renderScaleForQuality } from "../settings/GameSettings";
-import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual, setPropVisualCollisions } from "./mapBuilder";
+import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisual, resetMapCaches, setPropVisualCollisions } from "./mapBuilder";
 import { InputController, type CameraMode } from "./InputController";
 
 const COPY_RANGE = 6.0;
@@ -47,6 +47,7 @@ interface Visual {
 export class GameScene {
   private engine: Engine;
   private scene: Scene;
+  private glow: GlowLayer | null = null;
   private input: InputController;
   private net: NetworkClient;
   private audio: AudioManager;
@@ -86,6 +87,8 @@ export class GameScene {
   private prevLocked = false;
 
   onLockLost?: () => void;
+  /** The browser refused a pointer-lock request (no lock was ever taken). */
+  onLockDenied?: () => void;
 
   constructor(canvas: HTMLCanvasElement, net: NetworkClient, audio: AudioManager, hud: HUD, settings: GameSettings) {
     this.canvas = canvas;
@@ -103,18 +106,30 @@ export class GameScene {
     buildEnvironment(this.scene, map);
     buildStaticProps(this.scene, map);
 
-    const glow = new GlowLayer("glow", this.scene);
-    glow.intensity = 0.55;
+    // The glow layer re-renders every mesh it "owns" into an offscreen target.
+    // With no include-list Babylon owns the WHOLE scene (~500 meshes), which
+    // roughly doubles the frame cost for the sake of ~10 glowing bits. So we
+    // build it with an explicit include-list and register only bright-emissive
+    // meshes via addGlow(). On "low" we skip the layer entirely.
+    if (this.settings.renderQuality !== "low") {
+      this.glow = new GlowLayer("glow", this.scene);
+      this.glow.intensity = 0.55;
+    }
+    // Static scenery: the sun disc and any lamp glass built above.
+    for (const m of this.scene.meshes) this.addGlowMesh(m as Mesh);
 
     const me = this.me();
     const spawn = me ? { x: me.x, z: me.z, ry: me.ry } : { x: 0, z: 0, ry: 0 };
     this.input = new InputController(this.scene, canvas, spawn);
     this.input.setBounds(map.bounds);
     this.input.onJump = () => this.audio.play("jump");
+    this.input.onLockDenied = () => this.onLockDenied?.();
     this.applySettings(this.settings);
 
     this.buildGunViewmodel();
     this.buildAxeViewmodel();
+    this.addGlowTree(this.gunRoot);
+    this.addGlowTree(this.axeRoot);
 
     this.registerActionInput();
     this.registerServerEvents();
@@ -126,6 +141,42 @@ export class GameScene {
 
   private me(): PlayerView | undefined {
     return (this.room.state as any).players.get(this.net.sessionId) as PlayerView | undefined;
+  }
+
+  /**
+   * Register a single mesh with the glow layer, but only if its material is
+   * genuinely bright-emissive. Ordinary scenery sits at emissive <= 0.2 (mat()
+   * defaults to 0.16); the things meant to bloom — gun tip, axe rune, sun disc,
+   * lamp glass, tracers, muzzle flash — are all >= 0.85 on their strongest
+   * channel. 0.6 sits safely in that gap.
+   */
+  private addGlowMesh(m: Mesh | null | undefined) {
+    if (!this.glow || !m) return;
+    const mat = m.material as StandardMaterial | null;
+    const e = mat?.emissiveColor;
+    if (!e) return;
+    if (Math.max(e.r, e.g, e.b) >= 0.6) this.glow.addIncludedOnlyMesh(m);
+  }
+
+  /** Same, for every mesh under a freshly-built player/prop/decoy visual. */
+  private addGlowTree(node: TransformNode | null | undefined) {
+    if (!this.glow || !node) return;
+    for (const m of node.getChildMeshes(false)) this.addGlowMesh(m as Mesh);
+  }
+
+  /**
+   * Dispose a player/decoy visual, un-registering its meshes from the glow
+   * layer first. Babylon stores included meshes by uniqueId and does NOT drop
+   * them when the mesh is disposed, and hasMesh() does a linear indexOf over
+   * that list every frame — so without this, disguise changes would slowly
+   * grow a list of dead ids that costs us on every frame.
+   */
+  private disposeVisual(node: TransformNode | null | undefined) {
+    if (!node) return;
+    if (this.glow) {
+      for (const m of node.getChildMeshes(false)) this.glow.removeIncludedOnlyMesh(m as Mesh);
+    }
+    node.dispose();
   }
 
   requestLock() {
@@ -398,7 +449,7 @@ export class GameScene {
         if (!renderLocalBody || !p.alive) {
           const ex = this.visuals.get(id);
           if (ex) {
-            ex.node.dispose();
+            this.disposeVisual(ex.node);
             this.visuals.delete(id);
           }
           return;
@@ -406,10 +457,11 @@ export class GameScene {
         const desiredKey = p.propModel ? p.propModel : "self_body";
         let v = this.visuals.get(id);
         if (!v || v.key !== desiredKey) {
-          v?.node.dispose();
+          this.disposeVisual(v?.node);
           const node = p.propModel
             ? createPropVisual(this.scene, p.propModel, `self_${id}`)
             : createHunterVisual(this.scene, `self_${id}`, "#37d9a0");
+          this.addGlowTree(node);
           v = { node, key: desiredKey };
           this.visuals.set(id, v);
         }
@@ -424,7 +476,7 @@ export class GameScene {
       const desiredKey = p.alive ? (p.propModel ? p.propModel : isHunter ? "hunter" : "person") : "dead";
       let v = this.visuals.get(id);
       if (!v || v.key !== desiredKey) {
-        v?.node.dispose();
+        this.disposeVisual(v?.node);
         if (!p.alive) {
           this.visuals.delete(id);
           return;
@@ -438,6 +490,7 @@ export class GameScene {
         // dozens of tiny colliders for eyes/hat/weapons).
         if (p.propModel) setPropVisualCollisions(node, true);
         else node.getChildMeshes().forEach((m) => (m.checkCollisions = m.name.includes("_torso")));
+        this.addGlowTree(node);
         v = { node, key: desiredKey };
         this.visuals.set(id, v);
       }
@@ -448,7 +501,7 @@ export class GameScene {
 
     for (const [id, v] of this.visuals) {
       if (!seen.has(id)) {
-        v.node.dispose();
+        this.disposeVisual(v.node);
         this.visuals.delete(id);
       }
     }
@@ -463,6 +516,7 @@ export class GameScene {
       const mine = d.ownerId === this.net.sessionId;
       if (!this.decoyNodes.has(d.id)) {
         const node = createPropVisual(this.scene, d.modelKey, `decoy_${d.id}`);
+        this.addGlowTree(node);
         node.position.set(d.x, d.y, d.z);
         node.rotation.y = d.ry;
         // A decoy spawns on the dropper's exact spot, so making it solid to the
@@ -487,7 +541,7 @@ export class GameScene {
     });
     for (const [id, node] of this.decoyNodes) {
       if (!seen.has(id)) {
-        node.dispose();
+        this.disposeVisual(node);
         this.decoyNodes.delete(id);
         this.pendingOwnerDecoys.delete(id);
       }
@@ -789,7 +843,14 @@ export class GameScene {
     tube.material = m;
     tube.isPickable = false;
     tube.renderingGroupId = 1;
-    window.setTimeout(() => tube.dispose(), 70);
+    this.addGlowMesh(tube);
+    window.setTimeout(() => {
+      // Unregister before disposing: the glow include-list is scanned per frame,
+      // so leaving ~4 dead entries per second in it would grow unbounded.
+      this.glow?.removeIncludedOnlyMesh(tube);
+      tube.dispose();
+      m.dispose(); // was leaked: only the mesh used to be disposed
+    }, 70);
   }
 
   private spawnMuzzleFlash(pos: Vector3) {
@@ -801,7 +862,12 @@ export class GameScene {
     s.material = m;
     s.isPickable = false;
     s.renderingGroupId = 1;
-    window.setTimeout(() => s.dispose(), 50);
+    this.addGlowMesh(s);
+    window.setTimeout(() => {
+      this.glow?.removeIncludedOnlyMesh(s);
+      s.dispose();
+      m.dispose(); // was leaked
+    }, 50);
   }
 
   private spawnFlashbangBurst(pos: Vector3) {
@@ -815,6 +881,7 @@ export class GameScene {
     s.material = m;
     s.isPickable = false;
     s.renderingGroupId = 1;
+    this.addGlowMesh(s);
 
     const started = performance.now();
     const tick = () => {
@@ -823,6 +890,7 @@ export class GameScene {
       s.scaling.setAll(scale);
       m.alpha = 0.85 * (1 - t);
       if (t >= 1) {
+        this.glow?.removeIncludedOnlyMesh(s);
         s.dispose();
         m.dispose();
         return;
@@ -1012,5 +1080,10 @@ export class GameScene {
     this.engine.stopRenderLoop();
     this.scene.dispose();
     this.engine.dispose();
+    // The engine is gone, so every cached material/texture in mapBuilder now
+    // points at a dead WebGL context. Must be cleared or the NEXT match throws
+    // on its first render. (Phase returns to Lobby between matches, which
+    // disposes this scene, so this runs in normal play — not just on Leave.)
+    resetMapCaches();
   }
 }

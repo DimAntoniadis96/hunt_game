@@ -25,6 +25,7 @@ export class HUD {
   private refs: Record<string, HTMLElement> = {};
   private bannerTimer = 0;
   private lastFinaleNum: number | null = null;
+  private lastPromptHtml: string | null = null;
 
   constructor(root: HTMLElement) {
     this.el = document.createElement("div");
@@ -339,9 +340,17 @@ export class HUD {
     if (!html) {
       p.classList.remove("show");
       p.classList.remove("locked");
+      this.lastPromptHtml = null;
       return;
     }
-    p.innerHTML = html;
+    // This runs every frame from GameScene.updatePrompts, but the content only
+    // changes about once a second (the cooldown counters). Assigning innerHTML
+    // always tears down and re-parses the subtree, so an unguarded write was
+    // destroying and rebuilding ~20 nodes 60x/second. Compare first.
+    if (html !== this.lastPromptHtml) {
+      p.innerHTML = html;
+      this.lastPromptHtml = html;
+    }
     p.classList.add("show");
     // Red, pulsing treatment while the player is frozen-in-place (R lock).
     p.classList.toggle("locked", locked);

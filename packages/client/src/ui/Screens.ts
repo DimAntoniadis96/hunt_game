@@ -28,6 +28,8 @@ export class Screens {
   private tutorial!: HTMLElement;
   private tutStep = 0;
   private tutAutoShown = false;
+  private roomCode = "";
+  private copyHintTimer = 0;
 
   onConnect?: (mode: ConnectMode) => void;
   onReady?: (ready: boolean) => void;
@@ -81,7 +83,11 @@ export class Screens {
         <div class="brand"><h1>Lobby</h1></div>
         <div data-r="codewrap">
           <label>Room code — share to invite friends</label>
-          <div class="code-pill" data-r="code">—</div>
+          <button class="code-pill" data-r="code" data-a="copycode" type="button" title="Click to copy the invite link">
+            <span data-r="codetext">—</span>
+            <span class="code-copy" aria-hidden="true">Copy link</span>
+          </button>
+          <p class="code-hint" data-r="codehint">Click the code to copy an invite link.</p>
         </div>
         <label class="mt">Players</label>
         <ul class="lobby-players" data-r="players"></ul>
@@ -149,6 +155,78 @@ export class Screens {
     });
     this.lobby.querySelector('[data-a="settings"]')!.addEventListener("click", () => this.onSettings?.());
     this.lobby.querySelector('[data-a="leave"]')!.addEventListener("click", () => this.onLeave?.());
+    this.lobby.querySelector('[data-a="copycode"]')!.addEventListener("click", () => void this.copyInvite());
+  }
+
+  /** The shareable URL for the current room (picked up by the ?room= handler). */
+  private inviteUrl(): string {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.set("room", this.roomCode);
+      u.hash = "";
+      return u.toString();
+    } catch {
+      return this.roomCode;
+    }
+  }
+
+  /**
+   * Copy an invite link to the clipboard. navigator.clipboard needs a secure
+   * context, so fall back to a hidden textarea + execCommand on plain http
+   * (e.g. a LAN dev server), and to selecting the code if even that fails.
+   */
+  private async copyInvite() {
+    if (!this.roomCode) return;
+    const text = this.inviteUrl();
+    let ok = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      }
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        ta.remove();
+      } catch {
+        ok = false;
+      }
+    }
+    this.flashCopyHint(ok ? "Invite link copied — paste it to a friend." : `Copy failed. Share this code: ${this.roomCode}`, ok);
+  }
+
+  private flashCopyHint(msg: string, ok: boolean) {
+    const hint = this.lobby.querySelector<HTMLElement>('[data-r="codehint"]');
+    const pill = this.lobby.querySelector<HTMLElement>('[data-r="code"]');
+    if (!hint || !pill) return;
+    hint.textContent = msg;
+    hint.classList.toggle("ok", ok);
+    pill.classList.toggle("copied", ok);
+    window.clearTimeout(this.copyHintTimer);
+    this.copyHintTimer = window.setTimeout(() => {
+      hint.textContent = "Click the code to copy an invite link.";
+      hint.classList.remove("ok");
+      pill.classList.remove("copied");
+    }, 2400);
+  }
+
+  /** Pre-fill the "Have a room code?" field (used by ?room= invite links). */
+  prefillRoomCode(code: string) {
+    const input = this.menu.querySelector<HTMLInputElement>("#code");
+    if (!input) return;
+    input.value = code;
+    const nameInput = this.menu.querySelector<HTMLInputElement>("#name");
+    // If they already have a saved name, the only thing left is to press Join.
+    if (nameInput && !nameInput.value.trim()) nameInput.focus();
   }
 
   error(msg: string) {
@@ -256,14 +334,20 @@ export class Screens {
 
   /** A blocking overlay for unrecoverable feature/browser problems. */
   fatal(title: string, detail: string) {
+    // Hide the menu too — otherwise the message floats over a fully-rendered,
+    // apparently-clickable main menu (clicks are absorbed by the overlay).
+    this.menu.classList.add("hidden");
+    this.lobby.classList.add("hidden");
+    this.tutorial.classList.add("hidden");
     this.overlay.classList.remove("hidden");
     this.overlay.innerHTML = `<div class="msg"><h2>${title}</h2><p class="hint">${detail}</p></div>`;
   }
 
   /** "Click to play" — the required user gesture for pointer lock + audio. */
-  clickToPlay(onClick: () => void) {
+  clickToPlay(onClick: () => void, note?: string) {
     this.overlay.classList.remove("hidden");
-    this.overlay.innerHTML = `<div class="msg play-prompt"><h2>Click to play</h2><p class="hint">Locks your mouse for aiming and enables sound.<br/>Press <kbd>Esc</kbd> to release the mouse.</p><button>Enter game</button></div>`;
+    const noteHtml = note ? `<p class="play-note">${escapeHtml(note)}</p>` : "";
+    this.overlay.innerHTML = `<div class="msg play-prompt"><h2>Click to play</h2>${noteHtml}<p class="hint">Locks your mouse for aiming and enables sound.<br/>Press <kbd>Esc</kbd> to release the mouse.</p><button>Enter game</button></div>`;
     const go = () => {
       this.hideOverlay();
       onClick();
@@ -293,7 +377,8 @@ export class Screens {
     this.hideOverlay();
     const wrap = this.lobby.querySelector<HTMLElement>('[data-r="codewrap"]')!;
     wrap.style.display = isPrivate ? "block" : "none";
-    this.lobby.querySelector<HTMLElement>('[data-r="code"]')!.textContent = code || "—";
+    this.lobby.querySelector<HTMLElement>('[data-r="codetext"]')!.textContent = code || "—";
+    this.roomCode = code;
     this.setReadyButton(false); // fresh lobby: primary action is "Ready up" again
   }
 

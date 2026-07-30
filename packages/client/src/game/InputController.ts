@@ -68,6 +68,7 @@ export class InputController {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
     document.addEventListener("pointerlockchange", this.onLockChange);
+    document.addEventListener("pointerlockerror", this.onLockError);
     document.addEventListener("mousemove", this.onMouseMove);
     this.updateCamera();
   }
@@ -76,6 +77,7 @@ export class InputController {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     document.removeEventListener("pointerlockchange", this.onLockChange);
+    document.removeEventListener("pointerlockerror", this.onLockError);
     document.removeEventListener("mousemove", this.onMouseMove);
     this.collider.dispose();
   }
@@ -103,13 +105,28 @@ export class InputController {
     this.rotationLocked = v;
   }
 
+  /**
+   * Fired when the browser REFUSES a pointer-lock request. Distinct from
+   * onLockLost: no lock was ever acquired, so `pointerlockchange` never fires
+   * and nothing else would tell us. Common causes: Chrome's ~1s cooldown after
+   * the user pressed Esc, and a request made while the document isn't focused.
+   * Without a handler the click-to-play overlay had already been hidden, so the
+   * player ended up in the world with a mouse that did nothing.
+   */
+  onLockDenied?: () => void;
+
+  private onLockError = () => {
+    if (!this.locked) this.onLockDenied?.();
+  };
+
   requestLock() {
     if (!this.locked) {
       try {
-        const p = this.canvas.requestPointerLock();
-        if (p && typeof p.catch === "function") p.catch(() => { /* pointer lock can be denied by the browser */ });
+        const p = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+        // Safari returns undefined until 18.4, Chrome until 92 — duck-type it.
+        if (p && typeof p.catch === "function") p.catch(() => this.onLockDenied?.());
       } catch {
-        /* pointer lock can be denied by the browser */
+        this.onLockDenied?.();
       }
     }
   }
