@@ -77,7 +77,7 @@ export class GameScene {
    */
   private vmLayout = {
     k: 1,
-    gun: { x: 0.32, y: -0.57, z: 1.12, rx: 0.07, ry: -0.12, rz: 0.04 },
+    gun: { x: 0.32, y: -0.5, z: 1.12, rx: 0.07, ry: -0.12, rz: 0.04 },
     axe: { x: -0.46, y: -0.67, z: 1.08, rx: -0.16, ry: 0.3, rz: 0.55 },
   };
 
@@ -233,18 +233,23 @@ export class GameScene {
   // ---- gun viewmodel (hunter, first-person) -------------------------------
 
   private buildGunViewmodel() {
-    // A chunky, colourful cartoon "tag blaster": teal body, dark funnel muzzle,
-    // a round drum mag, and a glowing orange energy tip (blooms via the GlowLayer).
+    // A chunky cartoon "tag blaster" in two colours only: a teal body and near
+    // black hardware. Deliberately NO emissive/glow parts — the old glowing tip
+    // and drum hub blew out through the GlowLayer and made the weapon read as a
+    // lamp rather than a gun.
     const bodyMat = new StandardMaterial("gunBody", this.scene);
     bodyMat.diffuseColor = new Color3(0.2, 0.79, 0.62);
-    bodyMat.emissiveColor = new Color3(0.08, 0.32, 0.25);
+    bodyMat.emissiveColor = new Color3(0.08, 0.32, 0.25); // gentle self-lift, well under the glow threshold
     bodyMat.specularColor = new Color3(0.5, 0.6, 0.55);
     const darkMat = new StandardMaterial("gunDark", this.scene);
     darkMat.diffuseColor = new Color3(0.15, 0.17, 0.22);
     darkMat.emissiveColor = new Color3(0.07, 0.08, 0.11);
-    const glowMat = new StandardMaterial("gunGlow", this.scene);
-    glowMat.emissiveColor = new Color3(1, 0.5, 0.2);
-    glowMat.disableLighting = true;
+    // A slightly lighter teal so the muzzle ring and drum hub still read as
+    // separate parts now that they are no longer lit up.
+    const trimMat = new StandardMaterial("gunTrim", this.scene);
+    trimMat.diffuseColor = new Color3(0.34, 0.9, 0.75);
+    trimMat.emissiveColor = new Color3(0.1, 0.3, 0.25);
+    trimMat.specularColor = new Color3(0.4, 0.5, 0.48);
 
     const root = new TransformNode("gunvm", this.scene);
     root.parent = this.input.camera; // rides with the view
@@ -257,25 +262,29 @@ export class GameScene {
       m.renderingGroupId = 1; // draw on top so it doesn't clip into walls
       return m;
     };
-    part(MeshBuilder.CreateBox("gunBody", { width: 0.15, height: 0.2, depth: 0.44 }, this.scene), bodyMat);
-    part(MeshBuilder.CreateBox("gunFin", { width: 0.05, height: 0.09, depth: 0.3 }, this.scene), darkMat).position.set(0, 0.14, 0.02);
-    const funnel = part(MeshBuilder.CreateCylinder("gunFunnel", { diameterTop: 0.2, diameterBottom: 0.1, height: 0.2, tessellation: 16 }, this.scene), darkMat);
+    part(MeshBuilder.CreateBox("gunBody", { width: 0.2, height: 0.24, depth: 0.46 }, this.scene), bodyMat);
+    part(MeshBuilder.CreateBox("gunFin", { width: 0.07, height: 0.1, depth: 0.3 }, this.scene), darkMat).position.set(0, 0.17, 0.02);
+    const funnel = part(MeshBuilder.CreateCylinder("gunFunnel", { diameterTop: 0.24, diameterBottom: 0.13, height: 0.2, tessellation: 16 }, this.scene), darkMat);
     funnel.rotation.x = Math.PI / 2;
-    funnel.position.set(0, 0.02, 0.36);
-    part(MeshBuilder.CreateSphere("gunTip", { diameter: 0.13, segments: 12 }, this.scene), glowMat).position.set(0, 0.02, 0.46);
-    const drum = part(MeshBuilder.CreateCylinder("gunDrum", { diameter: 0.23, height: 0.09, tessellation: 18 }, this.scene), bodyMat);
+    funnel.position.set(0, 0.02, 0.38);
+    // Muzzle ring (was a glowing orange sphere): a solid teal collar instead.
+    const tip = part(MeshBuilder.CreateCylinder("gunTip", { diameter: 0.15, height: 0.05, tessellation: 16 }, this.scene), trimMat);
+    tip.rotation.x = Math.PI / 2;
+    tip.position.set(0, 0.02, 0.47);
+    const drum = part(MeshBuilder.CreateCylinder("gunDrum", { diameter: 0.27, height: 0.12, tessellation: 18 }, this.scene), bodyMat);
     drum.rotation.z = Math.PI / 2;
-    drum.position.set(0, -0.12, -0.05);
-    const hub = part(MeshBuilder.CreateCylinder("gunHub", { diameter: 0.08, height: 0.11, tessellation: 12 }, this.scene), glowMat);
+    drum.position.set(0, -0.13, -0.05);
+    // Drum hub (was the blown-out glowing core): plain dark hardware.
+    const hub = part(MeshBuilder.CreateCylinder("gunHub", { diameter: 0.11, height: 0.14, tessellation: 12 }, this.scene), darkMat);
     hub.rotation.z = Math.PI / 2;
-    hub.position.set(0, -0.12, -0.05);
-    const grip = part(MeshBuilder.CreateBox("gunGrip", { width: 0.1, height: 0.22, depth: 0.14 }, this.scene), darkMat);
-    grip.position.set(0, -0.2, -0.16);
+    hub.position.set(0, -0.13, -0.05);
+    const grip = part(MeshBuilder.CreateBox("gunGrip", { width: 0.13, height: 0.24, depth: 0.16 }, this.scene), darkMat);
+    grip.position.set(0, -0.22, -0.17);
     grip.rotation.x = -0.22;
 
     const muzzle = new TransformNode("muzzle", this.scene);
     muzzle.parent = root;
-    muzzle.position.set(0, 0.02, 0.5);
+    muzzle.position.set(0, 0.02, 0.52);
 
     this.gunRoot = root;
     this.gunMuzzle = muzzle;
@@ -360,11 +369,11 @@ export class GameScene {
 
     // Authored corner offsets, re-projected for this viewport.
     this.vmLayout.gun.x = 0.32 * xK * k;
-    this.vmLayout.gun.y = -0.57 * k;
+    this.vmLayout.gun.y = -0.5 * k;
     this.vmLayout.axe.x = -0.46 * xK * k;
     this.vmLayout.axe.y = -0.67 * k;
 
-    this.gunRoot?.scaling.setAll(0.8 * k);
+    this.gunRoot?.scaling.setAll(0.92 * k);
     this.axeRoot?.scaling.setAll(0.74 * k);
 
     // Apply the rest pose immediately so a resize doesn't leave the weapon in
