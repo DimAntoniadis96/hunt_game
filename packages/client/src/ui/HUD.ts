@@ -44,6 +44,9 @@ export class HUD {
         <div class="health-bar"><div class="health-fill" data-r="health" style="width:100%"></div></div>
       </div>
       <div class="hud-bottom-right hidden" data-r="weapon">
+        <div class="reload-cue" data-r="reloadcue" role="status" aria-live="polite" aria-hidden="true">
+          <span class="rc-key">R</span><span class="rc-label" data-r="reloadcuetext">Reload</span>
+        </div>
         <div class="ammo"><span data-r="ammo">8</span><span class="mag">/${WEAPON_MAG_SIZE}</span><span class="reserve" data-r="reserve">120</span></div>
         <div class="sub" data-r="wstate">R to reload</div>
       </div>
@@ -180,7 +183,35 @@ export class HUD {
           : me.ammo === 0
             ? "Reload (R) · F axe"
             : "R reload · F axe";
+      this.reloadCue(me);
+    } else {
+      this.setReloadCue(false, false);
     }
+  }
+
+  /**
+   * The blinking "press R" callout floating above the ammo panel. It only earns
+   * screen space when reloading is both possible and worth doing: alive, not
+   * already reloading, rounds left in reserve, and the mag at or under a
+   * quarter. At zero rounds chambered it escalates to the danger colour and
+   * blinks faster, so "low" and "dry" feel different at a glance.
+   */
+  private reloadCue(me: PlayerView) {
+    const dry = me.ammo === 0;
+    const low = me.ammo <= Math.max(1, Math.ceil(WEAPON_MAG_SIZE * 0.25));
+    const canReload = me.reserve > 0 && me.ammo < WEAPON_MAG_SIZE;
+    const show = me.alive !== false && !me.reloading && canReload && low;
+    this.setReloadCue(show, dry);
+  }
+
+  private setReloadCue(show: boolean, urgent: boolean) {
+    const cue = this.refs.reloadcue;
+    if (!cue) return;
+    cue.classList.toggle("show", show);
+    cue.classList.toggle("urgent", show && urgent);
+    cue.setAttribute("aria-hidden", show ? "false" : "true");
+    const text = urgent ? "Reload!" : "Reload";
+    if (this.refs.reloadcuetext.textContent !== text) this.refs.reloadcuetext.textContent = text;
   }
 
   setCrosshairHit(hit: boolean, wrong = false) {
