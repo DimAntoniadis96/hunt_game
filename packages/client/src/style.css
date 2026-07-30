@@ -1074,23 +1074,93 @@ button:disabled {
   font-weight: 600;
 }
 
+/* Transient status messages. Docked directly above the key-hint bar rather than
+ * floating over the middle of the screen — mid-screen it covered the very thing
+ * the player was looking at, and at 22px bold it read like an error dialog.
+ * Styled as a sibling of .prompt so the two stack as one bottom-centre column. */
 .banner {
   position: absolute;
-  top: 30%;
+  bottom: 74px; /* clears .prompt (bottom: 22px, ~40px tall) with a 12px gap */
   left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 18px 30px;
-  font-size: 22px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(72vw, 620px);
+  padding: 9px 18px 9px 14px;
+  background: linear-gradient(180deg, rgba(22, 29, 40, 0.9), rgba(12, 16, 22, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: #eef4fa;
+  white-space: nowrap;
+  pointer-events: none;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transform: translate(-50%, 8px) scale(0.98);
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .banner.show {
   opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* Leading dot carries the tone; the text stays a neutral near-white so long
+ * messages don't turn into a wall of colour. */
+.banner .bn-icon {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+.banner.tone-info .bn-icon {
+  background: #7fb2ff;
+  box-shadow: 0 0 0 3px rgba(127, 178, 255, 0.16);
+}
+.banner.tone-warn {
+  border-color: rgba(255, 138, 46, 0.42);
+}
+.banner.tone-warn .bn-icon {
+  background: var(--accent-2);
+  box-shadow: 0 0 0 3px rgba(255, 112, 67, 0.18);
+}
+.banner.tone-good {
+  border-color: rgba(55, 217, 160, 0.45);
+}
+.banner.tone-good .bn-icon {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(55, 217, 160, 0.18);
+}
+.banner.tone-alert {
+  border-color: rgba(239, 83, 80, 0.5);
+}
+.banner.tone-alert .bn-icon {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 83, 80, 0.2);
+}
+
+/* Narrow windows: let a long message wrap instead of overflowing the viewport. */
+@media (max-width: 720px) {
+  .banner {
+    max-width: 88vw;
+    white-space: normal;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    transition: opacity 0.18s ease;
+    transform: translate(-50%, 0);
+  }
+  .banner.show {
+    transform: translate(-50%, 0);
+  }
 }
 
 /* (The flashbang blind overlay is created at runtime as a top-level element in

@@ -20,6 +20,8 @@ const PHASE_LABEL: Record<string, string> = {
   [Phase.MatchEnd]: "MATCH OVER",
 };
 
+export type BannerTone = "info" | "warn" | "good" | "alert";
+
 export class HUD {
   private el: HTMLElement;
   private refs: Record<string, HTMLElement> = {};
@@ -59,7 +61,10 @@ export class HUD {
           <div class="rebuild-sub">A team left — assigning new roles…</div>
         </div>
       </div>
-      <div class="banner" data-r="banner"></div>
+      <div class="banner" data-r="banner" role="status" aria-live="polite">
+        <span class="bn-icon" data-r="bannericon" aria-hidden="true"></span>
+        <span class="bn-text" data-r="bannertext"></span>
+      </div>
       <div class="hunter-wait-screen" data-r="hunterwait" aria-hidden="true">
         <div class="hunter-wait-map" aria-hidden="true">
           <span class="map-house"></span>
@@ -326,9 +331,24 @@ export class HUD {
     num.classList.add("pop");
   }
 
-  banner(text: string, ms = 2500) {
+  /**
+   * A short transient message, docked just above the key-hint bar at the bottom.
+   *
+   * `tone` only drives the colour of the leading dot and the border accent:
+   *   info  — neutral status (default)
+   *   warn  — "not yet" / cooldown / unavailable
+   *   good  — a successful action
+   *   alert — something significant happened to you
+   */
+  banner(text: string, ms = 2500, tone: BannerTone = "info") {
     const b = this.refs.banner;
-    b.textContent = text;
+    this.refs.bannertext.textContent = text;
+    b.classList.remove("tone-info", "tone-warn", "tone-good", "tone-alert");
+    b.classList.add(`tone-${tone}`);
+    // Replay the slide-in even when one message replaces another mid-flight,
+    // so a second denial doesn't look like the first one simply never cleared.
+    b.classList.remove("show");
+    void b.offsetWidth;
     b.classList.add("show");
     window.clearTimeout(this.bannerTimer);
     this.bannerTimer = window.setTimeout(() => b.classList.remove("show"), ms);

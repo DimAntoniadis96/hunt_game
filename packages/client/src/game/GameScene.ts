@@ -484,7 +484,7 @@ export class GameScene {
     }
     if (me && me.alive !== this.prevAlive && !me.alive) {
       this.input.teleport(me.x, me.y, me.z);
-      this.hud.banner("You were eliminated — spectating", 3000);
+      this.hud.banner("You were eliminated — spectating", 3000, "alert");
     }
     this.prevPhase = phase;
     if (me) this.prevAlive = me.alive;
@@ -820,7 +820,7 @@ export class GameScene {
         } else if (me.team === Team.Props && me.alive && me.propModel) {
           const now = performance.now();
           if (now < this.decoyReadyAt) {
-            this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900);
+            this.hud.banner(`Decoy ready in ${Math.ceil((this.decoyReadyAt - now) / 1000)}s`, 900, "warn");
             this.audio.play("ui");
           } else {
             this.net.decoy();
@@ -886,13 +886,13 @@ export class GameScene {
   private tryFlashbang() {
     const state = this.room.state as any;
     if (state.phase !== Phase.Hunt) {
-      this.hud.banner("Flash is available when hunters are released.", 1200);
+      this.hud.banner("Flash is available when hunters are released.", 1200, "warn");
       this.audio.play("ui");
       return;
     }
     const now = performance.now();
     if (now < this.flashbangReadyAt) {
-      this.hud.banner(`Flash ready in ${Math.ceil((this.flashbangReadyAt - now) / 1000)}s`, 900);
+      this.hud.banner(`Flash ready in ${Math.ceil((this.flashbangReadyAt - now) / 1000)}s`, 900, "warn");
       this.audio.play("ui");
       return;
     }
@@ -917,7 +917,7 @@ export class GameScene {
   private tryDisguise() {
     const near = this.nearestProp();
     if (!near) {
-      this.hud.banner("No object close enough to copy", 1200);
+      this.hud.banner("No object close enough to copy", 1200, "warn");
       return;
     }
     const me = this.me();
@@ -925,7 +925,7 @@ export class GameScene {
     // to a different model — re-copying your current disguise is a harmless no-op.
     const cdMs = this.transformReadyAt - performance.now();
     if (me?.propModel && near.modelKey !== me.propModel && cdMs > 0) {
-      this.hud.banner(`Can change disguise in ${Math.ceil(cdMs / 1000)}s`, 1200);
+      this.hud.banner(`Can change disguise in ${Math.ceil(cdMs / 1000)}s`, 1200, "warn");
       this.audio.play("ui");
       return;
     }
@@ -1117,7 +1117,7 @@ export class GameScene {
         }
         this.audio.play("transform"); // no center banner — the new model + sound are the cue
       } else {
-        this.hud.banner(m.reason || "Can't disguise here", 1400);
+        this.hud.banner(m.reason || "Can't disguise here", 1400, "warn");
         this.audio.play("ui");
       }
     });
@@ -1130,7 +1130,7 @@ export class GameScene {
     room.onMessage(ServerMessage.Flashbang, (m: any) => {
       if (!m.ok) {
         if (typeof m.cooldownMs === "number") this.flashbangReadyAt = performance.now() + m.cooldownMs;
-        this.hud.banner(m.reason || "Flash unavailable", 1200);
+        this.hud.banner(m.reason || "Flash unavailable", 1200, "warn");
         this.audio.play("ui");
         return;
       }
@@ -1140,7 +1140,11 @@ export class GameScene {
         this.blindScreen(m.durationMs ?? FLASHBANG_BLIND_MS);
       } else {
         this.flashbangReadyAt = performance.now() + (m.cooldownMs ?? FLASHBANG_COOLDOWN_MS);
-        this.hud.banner((m.affectedCount ?? 0) > 0 ? "Flashbang hit!" : "No seeker close enough", 1000);
+        this.hud.banner(
+        (m.affectedCount ?? 0) > 0 ? "Flashbang hit!" : "No seeker close enough",
+        1000,
+        (m.affectedCount ?? 0) > 0 ? "good" : "warn",
+      );
       }
       // Cosmetic burst + spatial pop, isolated so any failure can't affect the blind.
       try {
