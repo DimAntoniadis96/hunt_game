@@ -54,6 +54,8 @@ import {
   type InputPayload,
   type ShootPayload,
   type TransformPayload,
+  resolveSpawnPoint,
+  type OccupiedPoint,
 } from "@mimic/shared";
 import { Decoy, GameState, Player } from "../schema/GameState.js";
 import { generateRoomCode } from "../utils/roomCode.js";
@@ -825,6 +827,11 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.state.decoys.splice(0, this.state.decoys.length); // clear last round's decoys
     let hi = 0;
     let pi = 0;
+    // Authored spawn points can end up inside a prop or a wall as the map
+    // evolves, and there are fewer points than players so they also repeat.
+    // resolveSpawnPoint() nudges each one to the nearest genuinely free spot;
+    // feeding it the places already taken keeps players off each other too.
+    const taken: OccupiedPoint[] = [];
     this.state.players.forEach((player) => {
       player.health = PLAYER_MAX_HEALTH;
       player.alive = true;
@@ -835,8 +842,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       const m = this.meta.get(player.id);
       if (m) m.lastFlashbangAt = 0;
       if (player.team === Team.Hunters) {
-        const s = map.hunterSpawns[hi % map.hunterSpawns.length];
+        const s = resolveSpawnPoint(map, map.hunterSpawns[hi % map.hunterSpawns.length], PLAYER_RADIUS, taken);
         hi++;
+        taken.push({ x: s.x, z: s.z, radius: PLAYER_RADIUS });
         player.x = s.x;
         player.y = 0;
         player.z = s.z;
@@ -844,8 +852,9 @@ export class GameRoom extends Room<{ state: GameState }> {
         player.ammo = WEAPON_MAG_SIZE;
         player.reserve = WEAPON_RESERVE_AMMO;
       } else {
-        const s = map.propSpawns[pi % map.propSpawns.length];
+        const s = resolveSpawnPoint(map, map.propSpawns[pi % map.propSpawns.length], PLAYER_RADIUS, taken);
         pi++;
+        taken.push({ x: s.x, z: s.z, radius: PLAYER_RADIUS });
         player.x = s.x;
         player.y = 0;
         player.z = s.z;
@@ -859,7 +868,9 @@ export class GameRoom extends Room<{ state: GameState }> {
   private pickLobbySpawn() {
     const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
     const n = this.state.players.size;
-    const s = map.propSpawns[n % map.propSpawns.length];
+    const taken: OccupiedPoint[] = [];
+    this.state.players.forEach((p) => taken.push({ x: p.x, z: p.z, radius: PLAYER_RADIUS }));
+    const s = resolveSpawnPoint(map, map.propSpawns[n % map.propSpawns.length], PLAYER_RADIUS, taken);
     return { x: s.x, z: s.z };
   }
 
