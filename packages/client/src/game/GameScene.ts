@@ -68,6 +68,19 @@ export class GameScene {
   private menuOpen = false;
   private settings: GameSettings;
 
+  /**
+   * Where the first-person weapons sit, recomputed from the camera FOV and the
+   * window aspect ratio. The old code hardcoded positions that were tuned for
+   * one window shape, so on other shapes the weapons ran off the screen edges
+   * (and the user's FOV slider changed how big they looked). See
+   * layoutViewmodels() for the maths.
+   */
+  private vmLayout = {
+    k: 1,
+    gun: { x: 0.32, y: -0.57, z: 1.12, rx: 0.07, ry: -0.12, rz: 0.04 },
+    axe: { x: -0.46, y: -0.67, z: 1.08, rx: -0.16, ry: 0.3, rz: 0.55 },
+  };
+
   private gunRoot: TransformNode | null = null;
   private gunMuzzle: TransformNode | null = null;
   private axeRoot: TransformNode | null = null;
@@ -130,6 +143,7 @@ export class GameScene {
     this.buildAxeViewmodel();
     this.addGlowTree(this.gunRoot);
     this.addGlowTree(this.axeRoot);
+    this.layoutViewmodels();
 
     this.registerActionInput();
     this.registerServerEvents();
@@ -205,9 +219,13 @@ export class GameScene {
     this.input.setThirdPersonDistance(settings.cameraDistance);
     this.engine.setHardwareScalingLevel(renderScaleForQuality(settings.renderQuality));
     document.body.classList.toggle("reduce-motion", settings.reduceMotion);
+    this.layoutViewmodels(); // FOV and render scale both change the framing
   }
 
-  private onResize = () => this.engine.resize();
+  private onResize = () => {
+    this.engine.resize();
+    this.layoutViewmodels(); // the aspect ratio just changed
+  };
   private onLockChange = () => {
     if (document.pointerLockElement !== this.canvas && !this.menuOpen) this.onLockLost?.();
   };
@@ -313,6 +331,52 @@ export class GameScene {
     root.setEnabled(false);
   }
 
+  /**
+   * Anchor the weapons to the bottom corners at a consistent size, whatever the
+   * player's FOV setting and whatever shape their window is.
+   *
+   * Babylon's camera.fov is VERTICAL by default, so the horizontal extent grows
+   * with the aspect ratio: a fixed x offset that looks right on 16:9 pushes the
+   * weapon off the edge on an ultrawide and drags it toward the crosshair on a
+   * narrow window. So we scale the offsets by the actual view extents instead:
+   *   - size and vertical offset track the VERTICAL half-extent, keeping the
+   *     weapon the same share of screen height at any FOV;
+   *   - the horizontal offset tracks the HORIZONTAL half-extent, keeping it
+   *     tucked in the same corner at any aspect ratio.
+   */
+  private layoutViewmodels() {
+    const REF_FOV = (66 * Math.PI) / 180; // the framing these poses were tuned at
+    const REF_ASPECT = 16 / 9;
+    const cam = this.input.camera;
+    const w = this.engine.getRenderWidth() || 16;
+    const h = this.engine.getRenderHeight() || 9;
+    const aspect = w / h;
+
+    const vHalf = Math.tan(cam.fov / 2);
+    const refVHalf = Math.tan(REF_FOV / 2);
+    const k = vHalf / refVHalf;
+    const xK = (vHalf * aspect) / (refVHalf * REF_ASPECT);
+    this.vmLayout.k = k;
+
+    // Authored corner offsets, re-projected for this viewport.
+    this.vmLayout.gun.x = 0.32 * xK * k;
+    this.vmLayout.gun.y = -0.57 * k;
+    this.vmLayout.axe.x = -0.46 * xK * k;
+    this.vmLayout.axe.y = -0.67 * k;
+
+    this.gunRoot?.scaling.setAll(0.8 * k);
+    this.axeRoot?.scaling.setAll(0.74 * k);
+
+    // Apply the rest pose immediately so a resize doesn't leave the weapon in
+    // the old spot for a frame (animateGun/animateAxe only run while alive).
+    const g = this.vmLayout.gun;
+    this.gunRoot?.position.set(g.x, g.y, g.z);
+    this.gunRoot?.rotation.set(g.rx, g.ry, g.rz);
+    const ax = this.vmLayout.axe;
+    this.axeRoot?.position.set(ax.x, ax.y, ax.z);
+    this.axeRoot?.rotation.set(ax.rx, ax.ry, ax.rz);
+  }
+
   /** Rest pose + an overhead chop that sweeps down through screen centre. */
   private animateAxe() {
     if (!this.axeRoot) return;
@@ -329,8 +393,17 @@ export class GameScene {
       else if (p < 0.54) pose = lerp(wind, strike, (p - 0.26) / 0.28); // fast chop down
       else pose = lerp(strike, rest, (p - 0.54) / 0.46); // recover
     }
-    this.axeRoot.position.set(pose[0], pose[1], pose[2]);
-    this.axeRoot.rotation.set(pose[3], 0, pose[4]);
+    // The keyframes above are authored relative to `rest`; apply them as deltas
+    // on top of the computed corner anchor so the swing reads the same at any
+    // FOV / aspect ratio instead of snapping back to a hardcoded spot.
+    const L = this.vmLayout.axe;
+    const k = this.vmLayout.k;
+    this.axeRoot.position.set(
+      L.x + (pose[0] - rest[0]) * k,
+      L.y + (pose[1] - rest[1]) * k,
+      L.z + (pose[2] - rest[2]) * k,
+    );
+    this.axeRoot.rotation.set(L.rx + (pose[3] - rest[3]), L.ry, L.rz + (pose[4] - rest[4]));
   }
 
   /** Animates the first-person gun: recoil on fire + a visible reload motion. */
@@ -345,10 +418,14 @@ export class GameScene {
     }
     this.prevReloading = me.reloading;
 
-    // Base rest pose.
-    let x = 0.34;
-    let y = -0.32;
-    let z = 0.9;
+    // Authored rest pose — kept as the reference the offsets below are measured
+    // from; the actual on-screen anchor comes from vmLayout (see layoutViewmodels).
+    const REST_X = 0.34;
+    const REST_Y = -0.32;
+    const REST_Z = 0.9;
+    let x = REST_X;
+    let y = REST_Y;
+    let z = REST_Z;
     let rotX = 0;
 
     // Recoil kick (short).
@@ -365,8 +442,19 @@ export class GameScene {
       rotX = 0.85 * s;
     }
 
-    this.gunRoot.position.set(x, y, z);
-    this.gunRoot.rotation.set(rotX, 0, 0);
+    const L = this.vmLayout.gun;
+    const k = this.vmLayout.k;
+    // The rest anchor now sits properly low in the corner, so the authored
+    // reload dip (tuned against a higher rest pose) would drop the gun clean off
+    // the bottom edge — you'd reload blind. Damp the vertical travel so the
+    // motion still reads but the weapon stays on screen.
+    const DIP_DAMP = 0.5;
+    this.gunRoot.position.set(
+      L.x + (x - REST_X) * k,
+      L.y + (y - REST_Y) * k * DIP_DAMP,
+      L.z + (z - REST_Z) * k,
+    );
+    this.gunRoot.rotation.set(L.rx + rotX, L.ry, L.rz);
   }
 
   // ---- per-frame loop -----------------------------------------------------
