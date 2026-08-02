@@ -12,6 +12,33 @@ const HALF = PLAYER_EYE_HEIGHT / 2;
 const DOWN = new Vector3(0, -1, 0);
 /** How far below the feet we still count as "standing on a surface" (metres). */
 const GROUND_PROBE = 0.3;
+/**
+ * Step offset — the tallest ledge you can walk straight over.
+ *
+ * The collision ellipsoid used to start at the player's feet, so ANY ledge
+ * blocked you outright: the 0.40m pool coping, the 0.30m sandbox edges and the
+ * 0.35-0.42m plinths under several props all trapped you until you jumped.
+ *
+ * The fix is the same one Unity's CharacterController and Unreal's
+ * CharacterMovement use: lift the base of the collider by the step height so
+ * short obstacles are never hit horizontally, and let the downward ground probe
+ * place the feet on whatever you are actually standing on — the floor, or the
+ * top of the ledge you just walked onto.
+ *
+ * 0.45m matches Unreal's default (45cm) and Source's (~45cm). Nothing on the
+ * maps that is *meant* to block you is shorter than 0.9m, so no wall, fence or
+ * hedge becomes walk-through.
+ */
+const STEP_HEIGHT = 0.45;
+/** Vertical half-extent of the collider once its base is lifted by STEP_HEIGHT. */
+const BODY_HALF = (PLAYER_EYE_HEIGHT - STEP_HEIGHT) / 2;
+/**
+ * How far BELOW the feet the ground probe still reaches. The probe used to
+ * start 0.15m above the feet and run GROUND_PROBE (0.3m), i.e. 0.15m below
+ * them; keeping that number identical means falling and stepping down feel
+ * exactly as they did before.
+ */
+const GROUND_SNAP_BELOW = GROUND_PROBE - 0.15;
 /** Max fall speed (m/s) so a long drop doesn't tunnel through geometry. */
 const TERMINAL_VY = -32;
 
@@ -54,7 +81,10 @@ export class InputController {
     this.collider = MeshBuilder.CreateCapsule("playerCollider", { radius: PLAYER_RADIUS, height: PLAYER_EYE_HEIGHT }, scene);
     this.collider.isVisible = false;
     this.collider.checkCollisions = true;
-    this.collider.ellipsoid = new Vector3(PLAYER_RADIUS, HALF, PLAYER_RADIUS);
+    // Collider spans feet+STEP_HEIGHT .. feet+PLAYER_EYE_HEIGHT. The top is
+    // unchanged, so head clearance under low ceilings behaves as before.
+    this.collider.ellipsoid = new Vector3(PLAYER_RADIUS, BODY_HALF, PLAYER_RADIUS);
+    this.collider.ellipsoidOffset = new Vector3(0, STEP_HEIGHT + BODY_HALF - HALF, 0);
     this.collider.position.set(spawn.x, HALF, spawn.z);
 
     this.camera = new UniversalCamera("fps", new Vector3(spawn.x, PLAYER_EYE_HEIGHT, spawn.z), scene);
@@ -323,8 +353,11 @@ export class InputController {
    * collidable surface (floor/wall/prop) within reach, or null if airborne.
    */
   private probeGround(): number | null {
-    const origin = new Vector3(this.collider.position.x, this.collider.position.y - HALF + 0.15, this.collider.position.z);
-    const ray = new Ray(origin, DOWN, GROUND_PROBE);
+    // Start the probe at the top of the step envelope so a ledge we have just
+    // walked over is found ABOVE the feet and we rise onto it, then continue
+    // down past the feet by the original amount so drops are unchanged.
+    const origin = new Vector3(this.collider.position.x, this.collider.position.y - HALF + STEP_HEIGHT, this.collider.position.z);
+    const ray = new Ray(origin, DOWN, STEP_HEIGHT + GROUND_SNAP_BELOW);
     const pick = this.scene.pickWithRay(ray, (m: AbstractMesh) => m.checkCollisions && m !== this.collider && m.isPickable);
     return pick && pick.hit && pick.pickedPoint ? pick.pickedPoint.y : null;
   }
