@@ -1348,139 +1348,283 @@ button:disabled {
 .hunter-wait-panel {
   position: relative;
   z-index: 3;
-  width: min(900px, 88vw);
+  width: min(760px, 92vw);
+  max-height: 92vh;
+  overflow: auto;
   text-align: center;
-  padding: clamp(22px, 4.8vh, 42px) clamp(18px, 4.5vw, 56px);
-  border: 1px solid rgba(82, 255, 190, 0.52);
-  border-radius: 8px;
+  padding: clamp(26px, 4.4vh, 44px) clamp(22px, 4.4vw, 54px) clamp(20px, 3.4vh, 32px);
+  border: 1px solid rgba(82, 255, 190, 0.3);
+  border-radius: 18px;
   background:
-    linear-gradient(135deg, rgba(82, 255, 190, 0.12), transparent 24%, transparent 74%, rgba(255, 112, 67, 0.12)),
-    linear-gradient(180deg, rgba(7, 14, 22, 0.93), rgba(3, 8, 14, 0.97));
-  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.6), inset 0 0 34px rgba(55, 217, 160, 0.11), 0 0 0 6px rgba(5, 14, 22, 0.56);
+    radial-gradient(120% 80% at 50% -10%, rgba(55, 217, 160, 0.14), transparent 62%),
+    linear-gradient(180deg, rgba(9, 18, 27, 0.95), rgba(4, 9, 15, 0.975));
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(4, 10, 16, 0.7);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 }
-.hunter-wait-panel::before,
-.hunter-wait-panel::after {
+/* A single hairline of accent along the top edge instead of the two heavy
+ * side bars — same identity, far less noise. */
+.hunter-wait-panel::before {
   content: "";
   position: absolute;
-  top: 14px;
-  bottom: 14px;
-  width: 4px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, var(--accent), rgba(55, 217, 160, 0.14), var(--accent-2));
-  box-shadow: 0 0 18px rgba(55, 217, 160, 0.38);
+  left: 12%;
+  right: 12%;
+  top: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), rgba(141, 255, 207, 0.9), var(--accent), transparent);
+  box-shadow: 0 0 22px rgba(55, 217, 160, 0.5);
 }
-.hunter-wait-panel::before {
-  left: 14px;
-}
-.hunter-wait-panel::after {
-  right: 14px;
-}
-.hunter-wait-eyebrow,
-.hunter-wait-url,
-.hunter-wait-credit,
-.hunter-wait-countdown,
+
 .hunter-wait-title,
 .hunter-wait-byline,
-.hunter-wait-sub {
+.hunter-wait-eyebrow,
+.hunter-wait-sub,
+.hw-count,
+.hw-unit,
+.hw-link-label,
+.hw-link-value,
+.hunter-wait-credit {
   font-family: ui-monospace, "Cascadia Code", monospace;
 }
 
-/* Game identity — the hero of the card. */
+/* ---- identity ---- */
+.hw-head {
+  margin-bottom: clamp(18px, 3vh, 26px);
+}
 .hunter-wait-title {
-  font-size: clamp(26px, 5.4vw, 52px);
+  font-size: clamp(24px, 4.4vw, 42px);
   font-weight: 900;
-  letter-spacing: clamp(2px, 0.7vw, 7px);
+  letter-spacing: clamp(2px, 0.55vw, 6px);
   line-height: 1;
-  background: linear-gradient(180deg, #ffffff 0%, #8dffcf 130%);
+  background: linear-gradient(180deg, #ffffff 0%, #8dffcf 135%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 3px 22px rgba(55, 217, 160, 0.3));
+  filter: drop-shadow(0 3px 20px rgba(55, 217, 160, 0.28));
 }
 .hunter-wait-byline {
-  margin-top: 9px;
-  color: rgba(210, 230, 240, 0.72);
-  font-size: clamp(12px, 1.9vw, 16px);
+  margin-top: 8px;
+  color: rgba(200, 222, 234, 0.6);
+  font-size: clamp(11px, 1.6vw, 13px);
   font-weight: 700;
+  letter-spacing: 0.5px;
 }
 .hunter-wait-byline b {
   color: var(--accent);
   font-weight: 900;
 }
 
+/* ---- the hold ---- */
 .hunter-wait-eyebrow {
-  display: inline-block;
-  margin: clamp(20px, 3.4vh, 30px) 0 14px;
-  padding: 7px 16px;
-  color: #04120d;
-  background: linear-gradient(90deg, var(--accent), #8dffcf);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: clamp(14px, 2.4vh, 20px);
+  padding: 6px 15px 6px 12px;
+  color: #9ffdd3;
+  background: rgba(55, 217, 160, 0.1);
+  border: 1px solid rgba(82, 255, 190, 0.34);
   border-radius: 999px;
-  font-size: clamp(10px, 1.5vw, 12px);
-  font-weight: 900;
-  letter-spacing: 2px;
-  box-shadow: 0 0 24px rgba(55, 217, 160, 0.3);
-}
-.hunter-wait-countdown {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: clamp(8px, 1.6vw, 14px);
-  margin: 0 auto 6px;
-  color: #f4fbff;
-  line-height: 0.9;
-  text-shadow: 0 0 30px rgba(55, 217, 160, 0.42);
-}
-.hunter-wait-countdown span {
-  font-size: clamp(56px, 12vw, 120px);
-  font-weight: 900;
-}
-.hunter-wait-countdown small {
-  color: rgba(219, 238, 248, 0.82);
-  font-size: clamp(12px, 2vw, 20px);
-  font-weight: 900;
+  font-size: clamp(10px, 1.3vw, 11.5px);
+  font-weight: 800;
+  letter-spacing: 2.4px;
   text-transform: uppercase;
-  letter-spacing: 1px;
+}
+.hw-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(55, 217, 160, 0.9);
+  animation: hw-pip-pulse 1.9s ease-in-out infinite;
+}
+@keyframes hw-pip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.28; }
+}
+
+/* Countdown ring: the number sits inside a track that drains over Prep, so the
+ * wait is readable at a glance without reading the digits. */
+.hw-ring {
+  --hw-progress: 1;
+  position: relative;
+  width: clamp(150px, 25vh, 210px);
+  aspect-ratio: 1;
+  margin: 0 auto clamp(12px, 2vh, 16px);
+}
+.hw-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg); /* start the arc at 12 o'clock */
+  overflow: visible;
+}
+.hw-ring-track,
+.hw-ring-bar {
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.hw-ring-track {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+.hw-ring-bar {
+  stroke: var(--accent);
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--hw-progress) * 100);
+  filter: drop-shadow(0 0 8px rgba(55, 217, 160, 0.6));
+  transition: stroke-dashoffset 0.25s linear, stroke 0.4s ease;
+}
+.hw-ring.urgent .hw-ring-bar {
+  stroke: var(--accent-2);
+  filter: drop-shadow(0 0 10px rgba(255, 112, 67, 0.65));
+}
+.hw-ring-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.hw-count {
+  font-size: clamp(46px, 8.5vh, 76px);
+  font-weight: 900;
+  line-height: 1;
+  color: #f4fbff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 28px rgba(55, 217, 160, 0.35);
+}
+.hw-ring.urgent .hw-count {
+  color: #ffd9c8;
+  text-shadow: 0 0 28px rgba(255, 112, 67, 0.42);
+}
+.hw-unit {
+  color: rgba(210, 232, 244, 0.55);
+  font-size: clamp(9px, 1.2vw, 11px);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 2.4px;
 }
 .hunter-wait-sub {
-  color: rgba(200, 220, 232, 0.58);
-  font-size: clamp(11px, 1.7vw, 15px);
+  color: rgba(196, 218, 232, 0.5);
+  font-size: clamp(10px, 1.4vw, 12px);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 2.2px;
 }
+
 .hunter-wait-divider {
-  width: min(340px, 64%);
+  width: min(300px, 62%);
   height: 1px;
-  margin: clamp(20px, 3.8vh, 32px) auto;
-  background: linear-gradient(90deg, transparent, rgba(82, 255, 190, 0.5), transparent);
+  margin: clamp(20px, 3.4vh, 30px) auto;
+  background: linear-gradient(90deg, transparent, rgba(82, 255, 190, 0.34), transparent);
 }
-.hunter-wait-copy {
-  max-width: 640px;
-  margin: 0 auto 14px;
-  color: #dbe8f2;
-  font-size: clamp(16px, 2.5vw, 26px);
-  font-weight: 700;
-  line-height: 1.32;
+
+/* ---- community call to action ---- */
+.hw-cta-title {
+  font-size: clamp(19px, 2.9vw, 27px);
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: #ffffff;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.hw-cta-copy {
+  max-width: 460px;
+  margin: 8px auto 0;
+  color: rgba(206, 224, 236, 0.72);
+  font-size: clamp(12.5px, 1.8vw, 15px);
+  font-weight: 500;
+  line-height: 1.5;
   text-wrap: balance;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-.hunter-wait-url {
-  color: var(--accent);
-  font-size: clamp(24px, 5vw, 50px);
-  font-weight: 900;
-  line-height: 1.05;
-  text-shadow: 0 0 18px rgba(55, 217, 160, 0.5), 0 0 44px rgba(55, 217, 160, 0.18);
+.hw-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: clamp(14px, 2.4vh, 20px);
+}
+.hw-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 190px;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  text-align: left;
+}
+.hw-link-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(190, 212, 226, 0.5);
+}
+.hw-link-value {
+  font-size: clamp(13px, 1.9vw, 16px);
+  font-weight: 800;
+  letter-spacing: 0.2px;
   overflow-wrap: anywhere;
 }
+.hw-link-site {
+  border-color: rgba(82, 255, 190, 0.34);
+  background: linear-gradient(180deg, rgba(55, 217, 160, 0.12), rgba(55, 217, 160, 0.03));
+}
+.hw-link-site .hw-link-value {
+  color: #6ff0bd;
+  text-shadow: 0 0 16px rgba(55, 217, 160, 0.34);
+}
+.hw-link-discord {
+  border-color: rgba(120, 140, 255, 0.34);
+  background: linear-gradient(180deg, rgba(110, 130, 245, 0.13), rgba(110, 130, 245, 0.03));
+}
+.hw-link-discord .hw-link-value {
+  color: #b3beff;
+  text-shadow: 0 0 16px rgba(120, 140, 255, 0.3);
+}
+
 .hunter-wait-credit {
-  margin-top: clamp(12px, 2.4vh, 20px);
-  color: rgba(210, 230, 240, 0.6);
-  font-size: clamp(12px, 1.8vw, 16px);
+  margin-top: clamp(14px, 2.4vh, 22px);
+  color: rgba(200, 222, 234, 0.42);
+  font-size: clamp(10px, 1.4vw, 12px);
   font-weight: 700;
+  letter-spacing: 0.4px;
 }
 .hunter-wait-credit b {
-  color: rgba(255, 236, 220, 0.95);
+  color: rgba(255, 236, 220, 0.78);
   font-weight: 900;
+}
+
+/* Short windows: drop the ring down a size and tighten the stack so the whole
+ * panel still fits without scrolling. */
+@media (max-height: 680px) {
+  .hw-ring {
+    width: clamp(120px, 22vh, 160px);
+  }
+  .hunter-wait-divider {
+    margin: 16px auto;
+  }
+  .hw-cta-copy {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hw-pip {
+    animation: none;
+  }
+  .hw-ring-bar {
+    transition: none;
+  }
 }
 
 /* ---- Final-seconds countdown (shared: last 5s of Prep, last 3s of Hunt) ---- *

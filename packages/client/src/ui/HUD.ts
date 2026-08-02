@@ -1,4 +1,13 @@
-import { Phase, Team, WEAPON_MAG_SIZE, type PlayerView } from "@mimic/shared";
+import { Phase, PREP_SECONDS, Team, WEAPON_MAG_SIZE, type PlayerView } from "@mimic/shared";
+
+/**
+ * Community links shown on the seeker-hold screen while hunters wait out Prep.
+ * It's the one moment every hunter is guaranteed to be staring at a full-screen
+ * panel with nothing to do, so it's the right place to ask them to join.
+ */
+const COMMUNITY_SITE = "www.study-saga.com";
+/** Invite code is case-sensitive — keep it exactly as issued by Discord. */
+const COMMUNITY_DISCORD = "discord.gg/2EqQJSc6TY";
 
 interface StateLike {
   phase: Phase;
@@ -28,6 +37,8 @@ export class HUD {
   private bannerTimer = 0;
   private lastFinaleNum: number | null = null;
   private lastPromptHtml: string | null = null;
+  private lastHoldSeconds = -1;
+  private lastHoldProgress = -1;
 
   constructor(root: HTMLElement) {
     this.el = document.createElement("div");
@@ -81,20 +92,43 @@ export class HUD {
           <span class="map-tree map-tree-c"></span>
         </div>
         <div class="hunter-wait-panel">
-          <div class="hunter-wait-title">SAGA HUNTING</div>
-          <div class="hunter-wait-byline">A prop-hunt game by <b>D_anto</b></div>
-
-          <div class="hunter-wait-eyebrow">SEEKER HOLD</div>
-          <div class="hunter-wait-countdown" aria-label="Hunt begins in">
-            <span data-r="hunterwaittimer">--</span>
-            <small data-r="hunterwaitunit">seconds</small>
+          <div class="hw-head">
+            <div class="hunter-wait-title">SAGA HUNTING</div>
+            <div class="hunter-wait-byline">A prop-hunt game by <b>D_anto</b></div>
           </div>
-          <div class="hunter-wait-sub">until the hunt begins</div>
+
+          <div class="hw-hold">
+            <div class="hunter-wait-eyebrow"><i class="hw-pip" aria-hidden="true"></i>Seeker hold</div>
+            <div class="hw-ring" data-r="hunterwaitring">
+              <svg class="hw-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="hw-ring-track" cx="60" cy="60" r="53" />
+                <circle class="hw-ring-bar" cx="60" cy="60" r="53" pathLength="100" />
+              </svg>
+              <div class="hw-ring-inner" aria-label="Hunt begins in">
+                <span class="hw-count" data-r="hunterwaittimer">--</span>
+                <small class="hw-unit" data-r="hunterwaitunit">seconds</small>
+              </div>
+            </div>
+            <div class="hunter-wait-sub">until the hunt begins</div>
+          </div>
 
           <div class="hunter-wait-divider" aria-hidden="true"></div>
 
-          <div class="hunter-wait-copy">Studying, gamified — turn your revision into a game worth finishing.</div>
-          <div class="hunter-wait-url">www.study-saga.com</div>
+          <div class="hw-cta">
+            <div class="hw-cta-title">Join our community</div>
+            <div class="hw-cta-copy">Find players, get first word on new maps, and help shape what we build next.</div>
+            <div class="hw-links">
+              <div class="hw-link hw-link-site">
+                <span class="hw-link-label">Website</span>
+                <span class="hw-link-value">${COMMUNITY_SITE}</span>
+              </div>
+              <div class="hw-link hw-link-discord">
+                <span class="hw-link-label">Discord</span>
+                <span class="hw-link-value">${COMMUNITY_DISCORD}</span>
+              </div>
+            </div>
+          </div>
+
           <div class="hunter-wait-credit">by <b>Zed Organization</b></div>
         </div>
       </div>
@@ -172,9 +206,9 @@ export class HUD {
     const hunterWaiting = phase === Phase.Prep && isHunter && me?.alive !== false;
     this.refs.hunterwait.classList.toggle("show", hunterWaiting);
     this.refs.hunterwait.setAttribute("aria-hidden", hunterWaiting ? "false" : "true");
-    const waitSeconds = this.secondsLeft(state.phaseEndsAt);
-    this.refs.hunterwaittimer.textContent = String(waitSeconds);
-    this.refs.hunterwaitunit.textContent = waitSeconds === 1 ? "second" : "seconds";
+    // Only touch this screen while it is actually on: props never see it, and
+    // this runs every frame.
+    if (hunterWaiting) this.updateHunterHold(state.phaseEndsAt);
     this.refs.weapon.classList.toggle("hidden", !isHunter);
     this.refs.crosshair.classList.toggle("hidden", !isHunter || !me?.alive);
     if (isHunter && me) {
@@ -218,6 +252,31 @@ export class HUD {
     cue.setAttribute("aria-hidden", show ? "false" : "true");
     const text = urgent ? "Reload!" : "Reload";
     if (this.refs.reloadcuetext.textContent !== text) this.refs.reloadcuetext.textContent = text;
+  }
+
+  /**
+   * Drive the seeker-hold countdown: the number, and the ring that drains as
+   * Prep runs out. Both writes are memoised — this is called every frame but
+   * the number changes once a second and the ring is quantised to 0.5% steps,
+   * so we are not forcing a style recalc 60 times a second for nothing.
+   */
+  private updateHunterHold(phaseEndsAt: number) {
+    const remainingMs = Math.max(0, phaseEndsAt - Date.now());
+    const seconds = Math.ceil(remainingMs / 1000);
+    if (seconds !== this.lastHoldSeconds) {
+      this.lastHoldSeconds = seconds;
+      this.refs.hunterwaittimer.textContent = String(seconds);
+      this.refs.hunterwaitunit.textContent = seconds === 1 ? "second" : "seconds";
+      // Last five seconds go amber — same language as the in-world finale.
+      this.refs.hunterwaitring?.classList.toggle("urgent", seconds <= 5);
+    }
+    // pathLength="100" on the circle means the dash maths is just a percentage,
+    // whatever radius the CSS ends up using.
+    const progress = Math.round(Math.max(0, Math.min(1, remainingMs / (PREP_SECONDS * 1000))) * 200) / 200;
+    if (progress !== this.lastHoldProgress) {
+      this.lastHoldProgress = progress;
+      this.refs.hunterwaitring?.style.setProperty("--hw-progress", String(progress));
+    }
   }
 
   setCrosshairHit(hit: boolean, wrong = false) {
