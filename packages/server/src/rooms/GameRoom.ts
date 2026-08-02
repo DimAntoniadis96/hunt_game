@@ -14,7 +14,7 @@ import {
   REBUILD_SECONDS,
   MAPS,
   MAX_MESSAGES_PER_SECOND,
-  MAX_NAME_LENGTH,
+  sanitizeName,
   MAX_PLAYERS,
   MAX_Y,
   MIN_PLAYERS_TO_START,
@@ -915,16 +915,6 @@ export class GameRoom extends Room<{ state: GameState }> {
 }
 
 // ---- pure helpers ---------------------------------------------------------
-
-function sanitizeName(name?: string): string {
-  if (!name || typeof name !== "string") return "";
-  // Strip control chars, collapse runs of whitespace, cap length.
-  return name
-    .replace(/[\u0000-\u001f\u007f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_NAME_LENGTH);
-}
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;

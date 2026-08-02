@@ -89,6 +89,8 @@ export const MAX_DECOYS_PER_PLAYER = 2;
 export const DECOY_COOLDOWN_MS = 3500;
 
 /** Network safety. */
+/** Display-name bounds. 3-16 mirrors PSN / Minecraft / Fortnite / Riot IDs. */
+export const MIN_NAME_LENGTH = 3;
 export const MAX_NAME_LENGTH = 16;
 export const ROOM_CODE_LENGTH = 5;
 /** Reject clients sending more than this many messages per second (anti-spam). */

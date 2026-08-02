@@ -2213,3 +2213,40 @@ body.reduce-motion *::after {
   font-size: 13.5px;
   font-weight: 600;
 }
+
+/* ---- Display-name field: live counter + validation hint ------------------ */
+.name-field {
+  position: relative;
+  display: block;
+}
+.name-field input {
+  width: 100%;
+  padding-right: 62px; /* room for the counter */
+}
+.name-count {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.name-count.over {
+  color: var(--danger);
+}
+.name-field input.invalid {
+  border-color: rgba(239, 83, 80, 0.65);
+}
+.name-hint {
+  margin: 6px 2px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.name-hint.bad {
+  color: #ff8a80;
+}

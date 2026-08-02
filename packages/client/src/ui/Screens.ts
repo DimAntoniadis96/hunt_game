@@ -1,4 +1,13 @@
-import { MAX_NAME_LENGTH, MIN_PLAYERS_TO_START, Team, type PlayerView } from "@mimic/shared";
+import {
+  MAX_NAME_LENGTH,
+  MIN_NAME_LENGTH,
+  MIN_PLAYERS_TO_START,
+  Team,
+  nameError,
+  nameLength,
+  sanitizeName,
+  type PlayerView,
+} from "@mimic/shared";
 import type { ConnectMode } from "../net/NetworkClient";
 
 interface LobbyState {
@@ -48,7 +57,12 @@ export class Screens {
         <p class="tagline">Hide as furniture, or hunt the impostors — a fast browser prop-hunt.</p>
 
         <div class="step"><span class="step-num">1</span><label for="name">Choose your name</label></div>
-        <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. NightCrate" autocomplete="off" spellcheck="false" />
+        <div class="name-field">
+          <input id="name" type="text" maxlength="${MAX_NAME_LENGTH}" placeholder="e.g. NightCrate" autocomplete="off"
+                 spellcheck="false" aria-describedby="name-hint" />
+          <span class="name-count" data-r="namecount" aria-hidden="true">0/${MAX_NAME_LENGTH}</span>
+        </div>
+        <p class="name-hint" id="name-hint" data-r="namehint">${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters.</p>
 
         <div class="step"><span class="step-num">2</span><label>Jump in and play</label></div>
         <button class="cta" data-a="public">
@@ -119,12 +133,42 @@ export class Screens {
     nameInput.value = loadName();
     const codeInput = this.menu.querySelector<HTMLInputElement>("#code")!;
 
+    const countEl = this.menu.querySelector<HTMLElement>('[data-r="namecount"]')!;
+    const hintEl = this.menu.querySelector<HTMLElement>('[data-r="namehint"]')!;
+
+    // Live feedback as they type. The server re-runs the exact same rules from
+    // @mimic/shared, so this is guidance, not the gate — a maxlength attribute
+    // stops nobody.
+    const refreshName = () => {
+      const raw = nameInput.value;
+      const len = nameLength(raw.trim());
+      countEl.textContent = `${len}/${MAX_NAME_LENGTH}`;
+      countEl.classList.toggle("over", len > MAX_NAME_LENGTH);
+      const err = raw.trim() ? nameError(raw.trim()) : null;
+      hintEl.textContent = err ?? `${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters.`;
+      hintEl.classList.toggle("bad", !!err);
+      nameInput.classList.toggle("invalid", !!err);
+    };
+    nameInput.addEventListener("input", refreshName);
+    refreshName();
+
     const getName = () => {
-      const n = nameInput.value.trim();
+      // sanitizeName is the same function the server uses: it strips control and
+      // zero-width characters, collapses whitespace and caps the length by code
+      // point, so an emoji can never be cut in half.
+      const n = sanitizeName(nameInput.value);
+      const err = n ? null : nameError(nameInput.value.trim());
       if (!n) {
-        this.error("Enter a display name first.");
+        this.error(err ?? "Enter a display name first.");
         nameInput.focus();
+        refreshName();
         return null;
+      }
+      // Show them what actually got sent, so a trimmed/cleaned name is not a
+      // surprise when it appears in the killfeed.
+      if (n !== nameInput.value) {
+        nameInput.value = n;
+        refreshName();
       }
       saveName(n);
       return n;
