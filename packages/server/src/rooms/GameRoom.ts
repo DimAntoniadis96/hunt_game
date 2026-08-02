@@ -417,6 +417,12 @@ export class GameRoom extends Room<{ state: GameState }> {
     m.lastShotAt = now;
     player.ammo = Math.max(0, player.ammo - 1);
 
+    // Auto-reload: the instant the mag runs dry, start reloading without making
+    // the player press R. Done here on the server rather than in the client so
+    // it behaves identically for everyone and costs no extra messages. If the
+    // reserve is empty this is a no-op and the hunter falls back to the axe.
+    if (player.ammo === 0) this.beginReload(player, m);
+
     const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
 
     // Build authoritative target cylinders. Players use their ACTUAL height
@@ -553,10 +559,23 @@ export class GameRoom extends Room<{ state: GameState }> {
   private handleReload(client: Client) {
     const player = this.state.players.get(client.sessionId);
     const m = this.meta.get(client.sessionId);
-    if (!player || !m || player.team !== Team.Hunters || !player.alive) return;
-    if (player.reloading || player.ammo >= WEAPON_MAG_SIZE || player.reserve <= 0) return;
+    if (!player || !m) return;
+    this.beginReload(player, m);
+  }
+
+  /**
+   * Start a reload if one is allowed. Shared by the manual R press and the
+   * automatic empty-mag trigger so the two can never disagree about what a
+   * legal reload is.
+   *
+   * Returns true if a reload actually started.
+   */
+  private beginReload(player: Player, m: ClientMeta): boolean {
+    if (player.team !== Team.Hunters || !player.alive) return false;
+    if (player.reloading || player.ammo >= WEAPON_MAG_SIZE || player.reserve <= 0) return false;
     player.reloading = true;
     m.reloadDoneAt = Date.now() + WEAPON_RELOAD_MS;
+    return true;
   }
 
   private handleFlashbang(client: Client) {
