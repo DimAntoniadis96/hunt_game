@@ -1348,6 +1348,10 @@ button:disabled {
 .hunter-wait-panel {
   position: relative;
   z-index: 3;
+  /* The screen sets pointer-events:none so it never eats clicks meant for the
+   * game; the panel opts back in so the community links are actually clickable
+   * (GameScene releases pointer lock while this screen is up). */
+  pointer-events: auto;
   width: min(760px, 92vw);
   max-height: 92vh;
   overflow: auto;
@@ -1561,7 +1565,32 @@ button:disabled {
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
   text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.3, 1), border-color 0.14s ease, box-shadow 0.14s ease,
+    background 0.14s ease;
 }
+.hw-link:hover {
+  transform: translateY(-2px);
+}
+.hw-link:active {
+  transform: translateY(0);
+}
+.hw-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.hw-link-site:hover {
+  border-color: rgba(82, 255, 190, 0.7);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), 0 0 22px rgba(55, 217, 160, 0.22);
+  background: linear-gradient(180deg, rgba(55, 217, 160, 0.2), rgba(55, 217, 160, 0.05));
+}
+.hw-link-discord:hover {
+  border-color: rgba(140, 158, 255, 0.72);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), 0 0 22px rgba(120, 140, 255, 0.22);
+  background: linear-gradient(180deg, rgba(110, 130, 245, 0.22), rgba(110, 130, 245, 0.05));
+}
+
 .hw-link-label {
   font-size: 9.5px;
   font-weight: 800;

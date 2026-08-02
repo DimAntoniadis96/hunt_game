@@ -6,8 +6,10 @@ import { Phase, PREP_SECONDS, Team, WEAPON_MAG_SIZE, type PlayerView } from "@mi
  * panel with nothing to do, so it's the right place to ask them to join.
  */
 const COMMUNITY_SITE = "www.study-saga.com";
+const COMMUNITY_SITE_URL = "https://www.study-saga.com";
 /** Invite code is case-sensitive — keep it exactly as issued by Discord. */
 const COMMUNITY_DISCORD = "discord.gg/2EqQJSc6TY";
+const COMMUNITY_DISCORD_URL = "https://discord.gg/2EqQJSc6TY";
 
 interface StateLike {
   phase: Phase;
@@ -116,16 +118,16 @@ export class HUD {
 
           <div class="hw-cta">
             <div class="hw-cta-title">Join our community</div>
-            <div class="hw-cta-copy">Find players, get first word on new maps, and help shape what we build next.</div>
+            <div class="hw-cta-copy">Studying is better when we do it together — come play, revise and hang out with us.</div>
             <div class="hw-links">
-              <div class="hw-link hw-link-site">
+              <a class="hw-link hw-link-site" href="${COMMUNITY_SITE_URL}" target="_blank" rel="noopener noreferrer">
                 <span class="hw-link-label">Website</span>
                 <span class="hw-link-value">${COMMUNITY_SITE}</span>
-              </div>
-              <div class="hw-link hw-link-discord">
+              </a>
+              <a class="hw-link hw-link-discord" href="${COMMUNITY_DISCORD_URL}" target="_blank" rel="noopener noreferrer">
                 <span class="hw-link-label">Discord</span>
                 <span class="hw-link-value">${COMMUNITY_DISCORD}</span>
-              </div>
+              </a>
             </div>
           </div>
 

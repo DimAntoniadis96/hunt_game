@@ -66,6 +66,13 @@ export class GameScene {
   private mapId: string;
   private currentMode: CameraMode = "fp";
   private menuOpen = false;
+  /**
+   * True while the seeker-hold screen owns the cursor. During Prep the hunter is
+   * frozen anyway, so we hand the mouse back and let them click the community
+   * links. Pointer lock has no visible cursor, so without this the links are
+   * unclickable no matter what CSS says.
+   */
+  private holdCursorFree = false;
   private settings: GameSettings;
 
   /**
@@ -195,6 +202,10 @@ export class GameScene {
 
   requestLock() {
     this.menuOpen = false;
+    // During the seeker hold the cursor belongs to the player so they can click
+    // the community links; clicking "Enter game" should still dismiss the
+    // overlay and unlock audio, just not recapture the mouse.
+    if (this.holdCursorFree) return;
     this.input.requestLock();
   }
 
@@ -203,6 +214,9 @@ export class GameScene {
   }
 
   setMenuOpen(open: boolean) {
+    // If the pause menu opens over the hold screen, hand cursor ownership to it
+    // so closing the menu restores the lock through the normal path.
+    if (open) this.holdCursorFree = false;
     this.menuOpen = open;
     if (open) {
       this.scoreboardOpen = false;
@@ -227,8 +241,34 @@ export class GameScene {
     this.layoutViewmodels(); // the aspect ratio just changed
   };
   private onLockChange = () => {
+    // holdCursorFree: WE released the lock for the hold screen — firing
+    // onLockLost here would pop the pause menu over it every round.
+    if (this.holdCursorFree) return;
     if (document.pointerLockElement !== this.canvas && !this.menuOpen) this.onLockLost?.();
   };
+
+  /**
+   * Give the mouse back for the seeker-hold screen, and take it again when the
+   * hunt starts. Re-locking without a fresh user gesture is allowed by some
+   * browsers and refused by others; if it is refused, InputController's
+   * pointerlockerror handler surfaces the click-to-play prompt, so the player
+   * always has a way back in.
+   */
+  private setHoldCursorFree(free: boolean) {
+    const changed = free !== this.holdCursorFree;
+    this.holdCursorFree = free;
+    if (free) {
+      // Enforced EVERY frame, not just on the transition. The click-to-play
+      // overlay can acquire the lock *after* the hold screen is already up
+      // (Prep starts -> screen shows -> only then does the player click "Enter
+      // game"), and an edge-triggered release would have already fired against
+      // no lock and never run again — leaving the cursor captured for the whole
+      // hold, which is exactly the bug this fixes.
+      if (this.input.locked) this.input.releaseLock();
+    } else if (changed && !this.menuOpen) {
+      this.input.requestLock();
+    }
+  }
 
   // ---- gun viewmodel (hunter, first-person) -------------------------------
 
@@ -506,6 +546,8 @@ export class GameScene {
     const frozen =
       !me || !me.alive || (phase === Phase.Prep && me.team === Team.Hunters) || (phase === Phase.Countdown && !!state.rebuilding);
     this.input.setFrozen(frozen);
+    // Same condition the HUD uses to show the seeker-hold screen.
+    this.setHoldCursorFree(phase === Phase.Prep && me?.team === Team.Hunters && me?.alive !== false);
     // Jump is allowed for any alive player (even a frozen hunter during Prep).
     this.input.setJumpAllowed(!!me && me.alive);
     // Lock (freeze in place, incl. mid-air) is driven locally for instant feel
@@ -789,6 +831,9 @@ export class GameScene {
 
   private onPointerDown = (e: PointerEvent) => {
     if (this.menuOpen) return;
+    // While the hold screen owns the cursor, a click is the player reaching for
+    // a link — re-locking here would snatch the mouse away mid-click.
+    if (this.holdCursorFree) return;
     if (e.button !== 0) return;
     if (!this.input.locked) {
       this.input.requestLock();
@@ -1177,6 +1222,7 @@ export class GameScene {
     if (this.blindRaf) cancelAnimationFrame(this.blindRaf);
     this.blindEl?.remove();
     this.blindEl = null;
+    this.holdCursorFree = false;
     this.input.dispose();
     this.engine.stopRenderLoop();
     this.scene.dispose();
