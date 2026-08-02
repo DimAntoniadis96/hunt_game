@@ -80,6 +80,29 @@ export const FLASHBANG_COOLDOWN_MS = 18000; // prevents repeated chain-blinding
 export const WHISTLE_INTERVAL_MS = 32000; // base gap between a hider's whistles
 export const WHISTLE_FAST_MS = 15000; // used when little hunt time remains
 export const WHISTLE_FAST_UNDER_SECONDS = 30;
+/**
+ * How far a locator whistle carries, in metres, before it fades to the floor
+ * below.
+ *
+ * This used to be 46m, which was fine on depot7 (35x35m) but left most of the
+ * backyard map silent — that map is 92x74m, a 118m diagonal, so a seeker more
+ * than ~40m away heard nothing at all. Since a hider only whistles every 32
+ * seconds, a hunter could go a whole round without a single audible cue.
+ */
+export const WHISTLE_AUDIBLE_RANGE = 95;
+/**
+ * The faintest a whistle is ever played. Guarantees a hunter ALWAYS hears it,
+ * however far away they are, while distance still comes through clearly in the
+ * volume. Must stay above AudioManager's "too quiet to bother" cutoff (0.02).
+ */
+export const WHISTLE_MIN_VOLUME = 0.06;
+/**
+ * Range over which a victim's cry is attenuated for the hunter who shot them,
+ * and the floor it is played at, so a connecting hit always reads as a hit.
+ */
+export const VICTIM_CRY_RANGE = 60;
+export const VICTIM_CRY_MIN_VOLUME = 0.45;
+export const KILL_CRY_MIN_VOLUME = 0.6;
 
 /** Cooldown between disguise changes (ms). Stops instant model-flicker to dodge. */
 export const TRANSFORM_COOLDOWN_MS = 5000;

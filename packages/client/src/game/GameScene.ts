@@ -24,7 +24,12 @@ import {
   ServerMessage,
   Team,
   TRANSFORM_COOLDOWN_MS,
+  VICTIM_CRY_MIN_VOLUME,
+  VICTIM_CRY_RANGE,
+  KILL_CRY_MIN_VOLUME,
   WEAPON_RELOAD_MS,
+  WHISTLE_AUDIBLE_RANGE,
+  WHISTLE_MIN_VOLUME,
   type DecoyView,
   type PlayerView,
 } from "@mimic/shared";
@@ -1096,6 +1101,13 @@ export class GameScene {
         this.hud.setCrosshairHit(true, false);
         // Axe hits use one of two impact sounds at random; gun hits use "hit".
         this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "hit");
+        // The victim's cry, at the point we actually connected. ServerMessage.Hit
+        // (which triggers the pain sound) is sent ONLY to the victim, so before
+        // this the shooter heard an abstract hitmarker and nothing else — you
+        // could not tell a person from a fencepost by ear.
+        const cry = this.spatialParams(m.hx ?? 0, m.hy ?? 0, m.hz ?? 0, VICTIM_CRY_RANGE);
+        const hasPoint = typeof m.hx === "number" && typeof m.hz === "number";
+        const cryPan = hasPoint ? cry.pan : 0;
         // A killing blow: confirm it straight from THIS direct result (always
         // arrives — same message as the hitmarker), so the killer can never miss
         // their own kill even if the broadcast feed hiccups.
@@ -1107,7 +1119,19 @@ export class GameScene {
           // so render the prominent kill banner right here — it can't be missed
           // even if the broadcast feed hiccups.
           this.hud.killEntry(myName, victimName, m.melee ? "axe" : "gun", true);
-          this.audio.playOneOf(["death1", "death2"]);
+          this.audio.playSpatial(
+            Math.random() < 0.5 ? "death1" : "death2",
+            Math.max(KILL_CRY_MIN_VOLUME, hasPoint ? cry.vol : 1),
+            cryPan,
+          );
+        } else {
+          // Hurt but not killed — the sound the victim makes, so the hunter
+          // knows they hit a hider and roughly where they are.
+          this.audio.playSpatial(
+            Math.random() < 0.5 ? "damage1" : "damage2",
+            Math.max(VICTIM_CRY_MIN_VOLUME, hasPoint ? cry.vol : 1),
+            cryPan,
+          );
         }
       } else if (m.decoy) {
         // Destroyed a decoy clone → ammo reward. Positive cue, no penalty. Tell
@@ -1169,8 +1193,11 @@ export class GameScene {
     room.onMessage(ServerMessage.Whistle, (m: any) => {
       // A prop's auto-whistle — play their assigned sound positionally so seekers
       // can locate them (loud when close, fading to silence when far).
-      const { vol, pan } = this.spatialParams(m.x, m.y ?? 0, m.z, 46);
-      this.audio.playWhistle(m.sound ?? 1, vol, pan);
+      const { vol, pan } = this.spatialParams(m.x, m.y ?? 0, m.z, WHISTLE_AUDIBLE_RANGE);
+      // Floor it: on the 92x74m backyard a hider on the far side used to be
+      // completely silent, and they only whistle every 32s. Distance still
+      // reads clearly through the volume — it just never reaches zero.
+      this.audio.playWhistle(m.sound ?? 1, Math.max(WHISTLE_MIN_VOLUME, vol), pan);
     });
     room.onMessage(ServerMessage.Flashbang, (m: any) => {
       if (!m.ok) {
