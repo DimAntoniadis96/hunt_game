@@ -96,13 +96,7 @@ export const WHISTLE_AUDIBLE_RANGE = 95;
  * volume. Must stay above AudioManager's "too quiet to bother" cutoff (0.02).
  */
 export const WHISTLE_MIN_VOLUME = 0.06;
-/**
- * Range over which a victim's cry is attenuated for the hunter who shot them,
- * and the floor it is played at, so a connecting hit always reads as a hit.
- */
-export const VICTIM_CRY_RANGE = 60;
-export const VICTIM_CRY_MIN_VOLUME = 0.45;
-export const KILL_CRY_MIN_VOLUME = 0.6;
+
 
 /** Cooldown between disguise changes (ms). Stops instant model-flicker to dodge. */
 export const TRANSFORM_COOLDOWN_MS = 5000;

@@ -15,6 +15,7 @@ import {
   MAPS,
   MAX_MESSAGES_PER_SECOND,
   sanitizeName,
+  type WorldSoundKind,
   MAX_PLAYERS,
   MAX_Y,
   MIN_PLAYERS_TO_START,
@@ -396,6 +397,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     player.propModel = model.key;
     if (changed) m.lastTransformAt = now;
     client.send(ServerMessage.TransformResult, { ok: true, propId: spawn.id, modelKey: model.key, cooldownMs: TRANSFORM_COOLDOWN_MS });
+    this.emitWorldSound("transform", player.x, player.y + PLAYER_EYE_HEIGHT, player.z, player.id);
   }
 
   private handleShoot(client: Client, p: ShootPayload) {
@@ -416,6 +418,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     if (now - m.lastShotAt < WEAPON_FIRE_COOLDOWN_MS) return; // fire-rate enforcement
     m.lastShotAt = now;
     player.ammo = Math.max(0, player.ammo - 1);
+    this.emitWorldSound("shoot", player.x, player.y + PLAYER_EYE_HEIGHT, player.z, player.id);
 
     // Auto-reload: the instant the mag runs dry, start reloading without making
     // the player press R. Done here on the server rather than in the client so
@@ -486,6 +489,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     const now = Date.now();
     if (now - m.lastMeleeAt < MELEE_COOLDOWN_MS) return;
     m.lastMeleeAt = now;
+    this.emitMeleeSwing(player);
 
     // Collect every candidate (prop players + decoys) and let the pure selector
     // pick the nearest one actually reached by the short aim-aligned swing.
@@ -522,6 +526,11 @@ export class GameRoom extends Room<{ state: GameState }> {
     client.send(ServerMessage.ShotResult, { hit: false, wrong: false, melee: true });
   }
 
+  /** The whoosh of an axe swing — heard by anyone close enough, hit or miss. */
+  private emitMeleeSwing(player: Player) {
+    this.emitWorldSound("melee_swing", player.x, player.y + PLAYER_EYE_HEIGHT, player.z, player.id);
+  }
+
   /** Authoritative target cylinders for the props a shooter can hit. */
   private propPlayerTargets(shooter: Player): CylinderTarget[] {
     const targets: CylinderTarget[] = [];
@@ -537,6 +546,17 @@ export class GameRoom extends Room<{ state: GameState }> {
     victim.health = Math.max(0, victim.health - amount);
     const killed = victim.health <= 0;
     attackerClient.send(ServerMessage.ShotResult, { hit: true, wrong: false, melee, targetId: victim.id, damage: amount, killed, hx, hy, hz });
+    // The impact, then the victim. Both are world events: every player nearby
+    // hears them, not just the two people involved.
+    // Melee has no impact point, so fall back to the victim's body.
+    this.emitWorldSound(
+      melee ? "melee_hit" : "hit",
+      hx ?? victim.x,
+      hy ?? victim.y + PLAYER_EYE_HEIGHT,
+      hz ?? victim.z,
+      attacker.id,
+    );
+    this.emitWorldSound(killed ? "death" : "hurt", victim.x, victim.y + PLAYER_EYE_HEIGHT, victim.z, victim.id);
     const victimClient = this.clients.find((c) => c.sessionId === victim.id);
     victimClient?.send(ServerMessage.Hit, { amount, health: victim.health, byId: attacker.id });
     if (killed) {
@@ -575,6 +595,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     if (player.reloading || player.ammo >= WEAPON_MAG_SIZE || player.reserve <= 0) return false;
     player.reloading = true;
     m.reloadDoneAt = Date.now() + WEAPON_RELOAD_MS;
+    this.emitWorldSound("reload", player.x, player.y + PLAYER_EYE_HEIGHT, player.z, player.id);
     return true;
   }
 
@@ -633,6 +654,9 @@ export class GameRoom extends Room<{ state: GameState }> {
       targetClient.send(ServerMessage.Flashbang, { ok: true, ...fx, blinded: true });
     });
     client.send(ServerMessage.Flashbang, { ok: true, ...fx, blinded: false, affectedCount, cooldownMs: FLASHBANG_COOLDOWN_MS });
+    // The BANG is a world event. Previously only players it actually blinded
+    // heard anything, so a flash going off 30m away was completely silent.
+    this.emitWorldSound("flash", player.x, player.y + PLAYER_EYE_HEIGHT, player.z, player.id);
   }
 
   /** Drop a fake clone of the prop's current disguise where they stand. */
@@ -920,6 +944,19 @@ export class GameRoom extends Room<{ state: GameState }> {
     }
     m.msgCount++;
     return m.msgCount <= MAX_MESSAGES_PER_SECOND;
+  }
+
+  /**
+   * Announce a noise at a world position to EVERY client. Each one mixes it by
+   * their own distance (see WORLD_SOUNDS in @mimic/shared), so the map behaves
+   * like a shared acoustic space instead of every player hearing only their own
+   * actions.
+   *
+   * `sourceId` is the player who caused it: their client already played the
+   * sound locally with zero delay, so it skips the broadcast copy.
+   */
+  private emitWorldSound(kind: WorldSoundKind, x: number, y: number, z: number, sourceId?: string) {
+    this.broadcast(ServerMessage.WorldSound, { kind, x, y, z, id: sourceId });
   }
 
   private async reserveUniqueCode(): Promise<string> {

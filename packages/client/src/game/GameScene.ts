@@ -24,18 +24,17 @@ import {
   ServerMessage,
   Team,
   TRANSFORM_COOLDOWN_MS,
-  VICTIM_CRY_MIN_VOLUME,
-  VICTIM_CRY_RANGE,
-  KILL_CRY_MIN_VOLUME,
   WEAPON_RELOAD_MS,
   WHISTLE_AUDIBLE_RANGE,
   WHISTLE_MIN_VOLUME,
+  worldSoundVolume,
+  type WorldSoundKind,
   type DecoyView,
   type PlayerView,
 } from "@mimic/shared";
 import type { Room } from "colyseus.js";
 import type { NetworkClient } from "../net/NetworkClient";
-import type { AudioManager } from "../audio/AudioManager";
+import type { AudioManager, Sfx } from "../audio/AudioManager";
 import type { HUD } from "../ui/HUD";
 import type { GameSettings } from "../settings/GameSettings";
 import { renderScaleForQuality } from "../settings/GameSettings";
@@ -43,6 +42,19 @@ import { buildEnvironment, buildStaticProps, createHunterVisual, createPropVisua
 import { InputController, type CameraMode } from "./InputController";
 
 const COPY_RANGE = 6.0;
+
+/** Which sample (or pair to pick randomly from) each world sound plays. */
+const WORLD_SOUND_SFX: Record<string, Sfx | [Sfx, Sfx]> = {
+  shoot: "shoot",
+  reload: "reload",
+  melee_swing: "axe_miss",
+  melee_hit: ["axe1", "axe2"],
+  hit: "hit",
+  hurt: ["damage1", "damage2"],
+  death: ["death1", "death2"],
+  transform: "transform",
+  flash: "flash",
+};
 
 interface Visual {
   node: TransformNode;
@@ -1101,13 +1113,7 @@ export class GameScene {
         this.hud.setCrosshairHit(true, false);
         // Axe hits use one of two impact sounds at random; gun hits use "hit".
         this.audio.play(m.melee ? (Math.random() < 0.5 ? "axe1" : "axe2") : "hit");
-        // The victim's cry, at the point we actually connected. ServerMessage.Hit
-        // (which triggers the pain sound) is sent ONLY to the victim, so before
-        // this the shooter heard an abstract hitmarker and nothing else — you
-        // could not tell a person from a fencepost by ear.
-        const cry = this.spatialParams(m.hx ?? 0, m.hy ?? 0, m.hz ?? 0, VICTIM_CRY_RANGE);
-        const hasPoint = typeof m.hx === "number" && typeof m.hz === "number";
-        const cryPan = hasPoint ? cry.pan : 0;
+
         // A killing blow: confirm it straight from THIS direct result (always
         // arrives — same message as the hitmarker), so the killer can never miss
         // their own kill even if the broadcast feed hiccups.
@@ -1119,19 +1125,8 @@ export class GameScene {
           // so render the prominent kill banner right here — it can't be missed
           // even if the broadcast feed hiccups.
           this.hud.killEntry(myName, victimName, m.melee ? "axe" : "gun", true);
-          this.audio.playSpatial(
-            Math.random() < 0.5 ? "death1" : "death2",
-            Math.max(KILL_CRY_MIN_VOLUME, hasPoint ? cry.vol : 1),
-            cryPan,
-          );
-        } else {
-          // Hurt but not killed — the sound the victim makes, so the hunter
-          // knows they hit a hider and roughly where they are.
-          this.audio.playSpatial(
-            Math.random() < 0.5 ? "damage1" : "damage2",
-            Math.max(VICTIM_CRY_MIN_VOLUME, hasPoint ? cry.vol : 1),
-            cryPan,
-          );
+          // The victim's cry itself arrives as a world sound, so the shooter
+          // hears it positioned exactly like every other player does.
         }
       } else if (m.decoy) {
         // Destroyed a decoy clone → ammo reward. Positive cue, no penalty. Tell
@@ -1190,6 +1185,27 @@ export class GameScene {
         this.audio.play("ui");
       }
     });
+    /**
+     * Every noise that happens somewhere on the map arrives here, and is mixed
+     * by THIS player's distance from it. A gunshot, a reload, a flashbang, a
+     * scream — you hear all of it if you are close enough, whether or not you
+     * were involved. The sound you caused yourself is skipped: your own client
+     * already played it locally with no network delay.
+     */
+    room.onMessage(ServerMessage.WorldSound, (m: any) => {
+      if (!m || typeof m.kind !== "string") return;
+      if (m.id && m.id === this.net.sessionId) return; // already heard it locally
+      const kind = m.kind as WorldSoundKind;
+      const sfx = WORLD_SOUND_SFX[kind];
+      if (!sfx) return;
+      const { pan } = this.spatialParams(m.x ?? 0, m.y ?? 0, m.z ?? 0, 1);
+      const cam = this.input.camera;
+      const dist = Math.hypot((m.x ?? 0) - cam.position.x, (m.y ?? 0) - cam.position.y, (m.z ?? 0) - cam.position.z);
+      const vol = worldSoundVolume(kind, dist);
+      if (vol <= 0) return;
+      this.audio.playSpatial(typeof sfx === "string" ? sfx : sfx[Math.random() < 0.5 ? 0 : 1], vol, pan);
+    });
+
     room.onMessage(ServerMessage.Whistle, (m: any) => {
       // A prop's auto-whistle — play their assigned sound positionally so seekers
       // can locate them (loud when close, fading to silence when far).

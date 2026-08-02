@@ -62,6 +62,7 @@ export const ServerMessage = {
   RoundEvent: "round_event", // countdown ticks and phase changes
   Flashbang: "flashbang", // close-range prop flash / hunter blind effect
   Whistle: "whistle", // a prop's auto-whistle locator (with world position)
+  WorldSound: "world_sound", // anything that makes a noise at a place on the map
   Error: "error",
 } as const;
 export type ServerMessageName =
@@ -171,6 +172,23 @@ export interface RoundEventPayload {
   secondsLeft: number;
   result?: RoundResult;
   message?: string;
+}
+
+/**
+ * Something audible happened at (x, y, z). Every client receives this and mixes
+ * it by their own distance — see WORLD_SOUNDS in sound.ts.
+ */
+export interface WorldSoundPayload {
+  kind: string;
+  x: number;
+  y: number;
+  z: number;
+  /**
+   * Who caused it. That player's own client already played the sound locally
+   * with no network delay, so it ignores the broadcast copy rather than
+   * hearing itself twice.
+   */
+  id?: string;
 }
 
 /** A prop's locator whistle at a world position (clients play it spatially). */

@@ -1,96 +1,100 @@
-// The two audio cues the game's whole hunt loop depends on:
-//   1. a hider's locator whistle must be audible to a seeker ANYWHERE on the map
-//   2. a seeker who connects a shot must hear the victim cry out
+// World sound: the map is a shared acoustic space.
 //
-// Both were broken. The whistle faded to silence past ~39.5m on a map with a
-// 118m diagonal, and ServerMessage.Hit — which triggers the pain sound — is sent
-// only to the victim, so the shooter heard an abstract hitmarker and nothing
-// else. These assertions are the guard rails.
+// Every noise that happens at a place is broadcast to EVERY client and mixed by
+// that listener's own distance. Before this, most sounds only ever reached the
+// player who caused them: a gunshot was audible only to the shooter, a reload
+// only to the reloader, a flashbang only to whoever it blinded, and a wounded
+// prop's cry only to the prop itself.
+//
+// These assertions guard the rule and the reach.
 import { strict as assert } from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  MAPS,
-  VICTIM_CRY_MIN_VOLUME,
-  VICTIM_CRY_RANGE,
-  KILL_CRY_MIN_VOLUME,
-  WHISTLE_AUDIBLE_RANGE,
-  WHISTLE_MIN_VOLUME,
-} from "../packages/shared/dist/index.js";
+import { MAPS, WHISTLE_AUDIBLE_RANGE, WHISTLE_MIN_VOLUME, WORLD_SOUNDS, worldSoundVolume } from "../packages/shared/dist/index.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const scene = fs.readFileSync(path.join(root, "packages/client/src/game/GameScene.ts"), "utf8");
-const audioMgr = fs.readFileSync(path.join(root, "packages/client/src/audio/AudioManager.ts"), "utf8");
+const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
+const scene = read("packages/client/src/game/GameScene.ts");
+const server = read("packages/server/src/rooms/GameRoom.ts");
+const audioMgr = read("packages/client/src/audio/AudioManager.ts");
 
 let n = 0;
 const check = (cond, msg) => { assert.ok(cond, msg); n++; };
 
-// AudioManager silently drops anything quieter than this, so every floor below
-// has to clear it or the sound is simply never played.
-const cutoffMatch = audioMgr.match(/if \(vol < ([\d.]+)\) return;/);
-check(!!cutoffMatch, "AudioManager has an audible-volume cutoff we can read");
-const CUTOFF = parseFloat(cutoffMatch[1]);
+// AudioManager drops anything quieter than this, so a "floor" below it is a lie.
+const CUTOFF = parseFloat(audioMgr.match(/if \(vol < ([\d.]+)\) return;/)[1]);
 
-/** The client's attenuation curve, mirrored from GameScene.spatialParams(). */
-const volumeAt = (dist, maxDist) => {
-  const t = Math.min(1, dist / maxDist);
-  return (1 - t) * (1 - t);
-};
+// Longest possible listener-to-source distance in the game.
+const worstCase = Math.max(
+  ...Object.values(MAPS).map((m) => Math.hypot(m.bounds.maxX - m.bounds.minX, m.bounds.maxZ - m.bounds.minZ)),
+);
+check(worstCase > 50, `sanity: largest map diagonal is ${worstCase.toFixed(0)}m`);
 
-// ---- 1. whistles reach across every map -----------------------------------
-check(WHISTLE_MIN_VOLUME > CUTOFF,
-  `WHISTLE_MIN_VOLUME ${WHISTLE_MIN_VOLUME} must exceed the ${CUTOFF} cutoff, or distant whistles are dropped entirely`);
-
-for (const map of Object.values(MAPS)) {
-  const b = map.bounds;
-  const diagonal = Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ);
-  // Worst case: seeker and hider in opposite corners.
-  const worst = Math.max(WHISTLE_MIN_VOLUME, volumeAt(diagonal, WHISTLE_AUDIBLE_RANGE));
+// ---- 1. loud events reach the whole map ------------------------------------
+// If any of these can go silent, a player can be shot at, flashed, or hear
+// someone die nearby and get no audio at all.
+for (const kind of ["shoot", "flash", "death"]) {
+  const far = worldSoundVolume(kind, worstCase);
   assert.ok(
-    worst > CUTOFF,
-    `${map.id}: a whistle from ${diagonal.toFixed(0)}m away plays at ${worst.toFixed(3)}, at or below the ${CUTOFF} cutoff — ` +
-      `a seeker on the far side of the map would hear nothing`,
+    far > CUTOFF,
+    `"${kind}" plays at ${far.toFixed(3)} from ${worstCase.toFixed(0)}m — at or under the ${CUTOFF} cutoff, so it would be silent across the map`,
   );
   n++;
-  // ...and distance must still be meaningful: close should be clearly louder than far.
-  const near = Math.max(WHISTLE_MIN_VOLUME, volumeAt(5, WHISTLE_AUDIBLE_RANGE));
-  assert.ok(near > worst * 3, `${map.id}: whistle volume should fall off usefully with distance (near ${near.toFixed(2)} vs far ${worst.toFixed(2)})`);
-  n++;
+  check(WORLD_SOUNDS[kind].floor > CUTOFF, `"${kind}" has a floor above the cutoff so it can never be dropped`);
 }
 
-check(/spatialParams\(m\.x, m\.y \?\? 0, m\.z, WHISTLE_AUDIBLE_RANGE\)/.test(scene),
-  "the whistle handler uses WHISTLE_AUDIBLE_RANGE rather than a hardcoded number");
-check(/playWhistle\(m\.sound \?\? 1, Math\.max\(WHISTLE_MIN_VOLUME, vol\), pan\)/.test(scene),
-  "the whistle is floored so it is never inaudible");
+// ---- 2. distance still means something -------------------------------------
+// A world where everything is equally loud everywhere is as useless as silence.
+for (const [kind, spec] of Object.entries(WORLD_SOUNDS)) {
+  const near = worldSoundVolume(kind, 2);
+  const mid = worldSoundVolume(kind, spec.range / 2);
+  check(near > mid, `"${kind}" must get quieter with distance (2m ${near.toFixed(2)} vs ${(spec.range / 2).toFixed(0)}m ${mid.toFixed(2)})`);
+  check(near >= 0.8, `"${kind}" should be near full volume up close`);
+  check(spec.range > 0 && spec.floor >= 0 && spec.floor < 1, `"${kind}" has a sane range/floor`);
+}
 
-// ---- 2. the shooter hears the victim ---------------------------------------
-check(VICTIM_CRY_MIN_VOLUME > CUTOFF, "the hurt-cry floor clears the audible cutoff");
-check(KILL_CRY_MIN_VOLUME > CUTOFF, "the kill-cry floor clears the audible cutoff");
-check(KILL_CRY_MIN_VOLUME >= VICTIM_CRY_MIN_VOLUME, "a kill should be at least as loud as a wound");
-check(VICTIM_CRY_RANGE > 0, "VICTIM_CRY_RANGE is set");
+// Quiet mechanical noises must NOT be audible map-wide, or the mix turns to mush.
+for (const kind of ["reload", "melee_swing"]) {
+  check(worldSoundVolume(kind, worstCase) <= CUTOFF, `"${kind}" should fade to nothing across the map`);
+}
 
-// A non-fatal hit must play a pain sound for the shooter. This is the exact gap
-// that existed: there was no `else` branch at all, so wounding a prop was silent.
-// Bound the slice on the actual handler REGISTRATIONS, not on bare message
-// names — those also appear in comments and would truncate the block.
-const hitBlock = scene.slice(
-  scene.indexOf("room.onMessage(ServerMessage.ShotResult"),
-  scene.indexOf("room.onMessage(ServerMessage.Hit"),
-);
-check(hitBlock.length > 200, "located the ShotResult handler body");
-check(/damage1.*damage2|damage2.*damage1/s.test(hitBlock),
-  "the ShotResult handler plays a hurt cry (damage1/damage2) for the shooter");
-check(/death1.*death2|death2.*death1/s.test(hitBlock),
-  "the ShotResult handler plays a death cry for the shooter");
-check(/playSpatial\(/.test(hitBlock),
-  "the victim's cry is positioned, so the shooter can hear WHERE they connected");
-check(/VICTIM_CRY_MIN_VOLUME/.test(hitBlock) && /KILL_CRY_MIN_VOLUME/.test(hitBlock),
-  "both cries use their floors, so a long-range hit still reads as a hit");
+// ---- 3. the server actually emits them -------------------------------------
+check(/private emitWorldSound\(/.test(server), "the server has a world-sound emitter");
+check(/this\.broadcast\(ServerMessage\.WorldSound/.test(server), "world sounds are BROADCAST, not sent to one client");
+for (const kind of ["shoot", "reload", "flash", "transform", "melee_swing"]) {
+  check(new RegExp(`emitWorldSound\\("${kind}"`).test(server), `the server emits "${kind}"`);
+}
+check(/emitWorldSound\(\s*melee \? "melee_hit" : "hit"/.test(server), "the server emits the bullet/axe impact");
+check(/emitWorldSound\(killed \? "death" : "hurt"/.test(server), "the server emits the victim's cry, fatal or not");
 
-// The impact point the cry is positioned at must actually be sent by the server.
-const server = fs.readFileSync(path.join(root, "packages/server/src/rooms/GameRoom.ts"), "utf8");
-check(/ShotResult, \{ hit: true[^}]*hx, hy, hz \}/.test(server),
-  "the server sends the impact point (hx, hy, hz) on a hit, which the cry is positioned at");
+// The gunshot in particular: it must be emitted in the shot handler, right where
+// the round is actually spent.
+const shotBlock = server.slice(server.indexOf("m.lastShotAt = now;"), server.indexOf("m.lastShotAt = now;") + 400);
+check(/emitWorldSound\("shoot"/.test(shotBlock), "the gunshot is emitted when the shot is fired");
 
-console.log(`audio-cues: ${n} assertions passed (whistle range ${WHISTLE_AUDIBLE_RANGE}m, floor ${WHISTLE_MIN_VOLUME}, cutoff ${CUTOFF})`);
+// ---- 4. the client plays every kind, positioned -----------------------------
+check(/room\.onMessage\(ServerMessage\.WorldSound/.test(scene), "the client handles world sounds");
+check(/worldSoundVolume\(kind, dist\)/.test(scene), "the client mixes by the shared distance curve");
+check(/playSpatial\(/.test(scene), "world sounds are played positioned, not flat");
+check(/if \(m\.id && m\.id === this\.net\.sessionId\) return;/.test(scene),
+  "a player skips the broadcast copy of a sound they already played locally");
+for (const kind of Object.keys(WORLD_SOUNDS)) {
+  check(new RegExp(`^\\s*${kind}: `, "m").test(scene), `the client maps "${kind}" to a sample`);
+}
+
+// ---- 5. interface audio stays out of the world -----------------------------
+// Menu blips and phase stings are not things that happen in the map.
+for (const uiKind of ["ui", "countdown", "round_start", "round_end"]) {
+  check(!(uiKind in WORLD_SOUNDS), `"${uiKind}" is interface audio and must not be a world sound`);
+}
+
+// ---- 6. whistles still reach across every map ------------------------------
+check(WHISTLE_MIN_VOLUME > CUTOFF, "the whistle floor clears the audible cutoff");
+{
+  const t = Math.min(1, worstCase / WHISTLE_AUDIBLE_RANGE);
+  const far = Math.max(WHISTLE_MIN_VOLUME, (1 - t) * (1 - t));
+  check(far > CUTOFF, `a whistle from ${worstCase.toFixed(0)}m plays at ${far.toFixed(3)}, above the cutoff`);
+}
+
+console.log(`world-sound: ${n} assertions passed (${Object.keys(WORLD_SOUNDS).length} sound kinds, worst-case distance ${worstCase.toFixed(0)}m)`);
