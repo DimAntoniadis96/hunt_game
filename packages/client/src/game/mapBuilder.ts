@@ -12,7 +12,7 @@ import {
   HemisphericLight,
   DirectionalLight,
 } from "@babylonjs/core";
-import { BACKYARD_HEDGES, CEMETERY_TREES, PROP_MODELS, type MapDefinition, type Occluder } from "@mimic/shared";
+import { BACKYARD_HEDGES, CEMETERY_BLOCKS, CEMETERY_TREES, PROP_MODELS, type MapDefinition, type Occluder } from "@mimic/shared";
 
 const matCache = new Map<string, StandardMaterial>();
 
@@ -461,12 +461,19 @@ function buildBackyard(scene: Scene, map: MapDefinition): Mesh[] {
 }
 
 // ---------------------------------------------------------------------------
-// Hollow Row (cemetery) — night, fog, and stone
+// Hollow Row (cemetery) — four walled rooms around a crossing
 // ---------------------------------------------------------------------------
 
+/**
+ * Every solid on this map is drawn from CEMETERY_BLOCKS, the same array the
+ * server turns into occluders. Nothing here invents its own geometry, so a
+ * wall you can see is always a wall that stops a bullet, and moving one is a
+ * single-line edit in tools/gen_cemetery.py rather than a change in two files
+ * that have to be kept in sync by hand.
+ */
 function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
-  // Moonlit night. The fog is dense enough that the far wall dissolves, which is
-  // what makes the map feel closed-in and gives hiders real cover at range.
+  // Moonlit night. The fog is dense enough that the far wall dissolves, which
+  // is what makes the map feel closed-in and gives hiders cover at range.
   scene.clearColor = new Color4(0.05, 0.062, 0.085, 1);
   scene.ambientColor = new Color3(0.1, 0.11, 0.16);
   scene.fogEnabled = true;
@@ -475,25 +482,23 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
   // horizon dissolves instead of ending on a hard line.
   scene.fogDensity = 0.022;
 
-  // Cold, low sky light plus a single hard moon from the north-east, so stones
-  // cast a readable direction and the scene doesn't turn into flat grey soup.
-  const sky = new HemisphericLight("sky", new Vector3(0.1, 1, -0.2), scene);
-  // Kept deliberately dim: props are drawn with a self-lit material, so a bright
-  // key light stacks on top of that and clips pale stone to flat white — which
+  // Kept deliberately dim: props are drawn with a self-lit material, so a
+  // bright key light stacks on top and clips pale stone to flat white — which
   // is exactly what stops a night map from reading as night.
+  const sky = new HemisphericLight("sky", new Vector3(0.1, 1, -0.2), scene);
   sky.intensity = 0.34;
   sky.diffuse = new Color3(0.46, 0.55, 0.8);
   sky.groundColor = new Color3(0.11, 0.12, 0.16);
   const moon = new DirectionalLight("moon", new Vector3(-0.45, -0.85, -0.5), scene);
-  moon.position = new Vector3(38, 52, 40);
+  moon.position = new Vector3(34, 46, 36);
   moon.intensity = 0.34;
   moon.diffuse = new Color3(0.6, 0.68, 0.9);
   moon.specular = new Color3(0.1, 0.11, 0.14);
   // A very weak fill from the opposite side. Without it the shaded face of a
-  // crypt or the chapel is pure black, and a hunter standing against one cannot
-  // tell a prop from the wall — atmospheric, but unplayable.
+  // tomb or a room wall is pure black, and a hunter standing against one cannot
+  // tell a prop from the masonry — atmospheric, but unplayable.
   const fill = new DirectionalLight("moonFill", new Vector3(0.6, -0.35, 0.7), scene);
-  fill.position = new Vector3(-40, 26, -44);
+  fill.position = new Vector3(-36, 24, -40);
   fill.intensity = 0.16;
   fill.diffuse = new Color3(0.4, 0.46, 0.62);
   fill.specular = new Color3(0, 0, 0);
@@ -503,7 +508,7 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
   const w = maxX - minX;
   const d = maxZ - minZ;
 
-  const box = (name: string, W: number, H: number, D: number, x: number, y: number, z: number, hex: string, solid = false, em = 0.07) => {
+  const solidBox = (name: string, W: number, H: number, D: number, x: number, y: number, z: number, hex: string, solid: boolean, em = 0.07) => {
     const m = MeshBuilder.CreateBox(name, { width: W, height: H, depth: D }, scene);
     m.position.set(x, y, z);
     m.material = grainMat(scene, hex, em);
@@ -512,128 +517,137 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
     if (solid) colliders.push(m);
     return m;
   };
-  const cyl = (name: string, dia: number, H: number, x: number, y: number, z: number, hex: string, solid = false, tess = 10, em = 0.07) => {
-    const m = MeshBuilder.CreateCylinder(name, { diameter: dia, height: H, tessellation: tess }, scene);
-    m.position.set(x, y, z);
-    m.material = grainMat(scene, hex, em);
-    m.checkCollisions = solid;
-    m.isPickable = solid;
-    if (solid) colliders.push(m);
-    return m;
-  };
 
-  // ---- ground: sour grass, with gravel paths laid flush on top --------------
+  // ---- ground ---------------------------------------------------------------
   const ground = MeshBuilder.CreateGround("graveground", { width: w, height: d }, scene);
-  ground.material = texMat(scene, "#2f3a2c", "grass", w / 3.2, d / 3.2, 0.05);
+  ground.material = texMat(scene, "#2c3529", "grass", w / 3.2, d / 3.2, 0.05);
   ground.checkCollisions = true;
   ground.isPickable = true;
   colliders.push(ground);
 
-  // Paths sit dead flat and win the depth test via a negative zOffset, so props
-  // standing on them are not sliced by a raised plane (same trick the backyard
-  // uses). The offset is passed through texMat so it is part of the cache key —
-  // mutating a shared cached material here would leak onto other surfaces.
-  const path = (name: string, W: number, D: number, x: number, z: number, hex = "#4a4741", zPri = -1) => {
+  // Flush surfaces, laid dead flat and winning the depth test via a negative
+  // zOffset rather than being physically raised — a raised plane slices the
+  // bottoms off every prop standing on it. The offset goes through texMat so
+  // it is part of the material cache key; mutating a shared cached material
+  // here would leak the offset onto unrelated surfaces.
+  const flat = (name: string, W: number, D: number, x: number, z: number, hex: string, kind: TexKind, zPri: number) => {
     const m = MeshBuilder.CreateGround(name, { width: W, height: D }, scene);
     m.position.set(x, 0.002, z);
-    m.material = texMat(scene, hex, "concrete", Math.max(1, W / 2), Math.max(1, D / 2), 0.05, zPri);
+    m.material = texMat(scene, hex, kind, Math.max(1, W / 3), Math.max(1, D / 3), 0.05, zPri);
     m.isPickable = false;
     return m;
   };
-  path("path_main", 4.4, d - 4, 0, 0);            // south gate up to the chapel
-  path("path_cross", w - 6, 3.4, 0, -6, "#46433d", -2);
-  path("path_crypt", 3.2, 26, 17.5, -3, "#46433d", -2);
+  // The crossing: two gravel lanes meeting in the middle. This is the only
+  // ground you can cross without entering a room, and it reads as such.
+  flat("lane_ns", 8, d, 0, 0, "#4a4741", "concrete", -1);
+  flat("lane_ew", w, 8, 0, 0, "#4a4741", "concrete", -1);
+  // Room floors — each quadrant gets its own surface so you always know which
+  // room you are standing in, even at a glance in the dark.
+  flat("floor_chapel", 25, 19, -16.5, 14.5, "#4f4b45", "concrete", -3); // nave flagstones
+  flat("floor_alley", 25, 19, 17.0, 14.5, "#3f3d39", "concrete", -3); // tomb gravel
+  flat("floor_yard", 25, 19, 17.0, -14.5, "#4a3f31", "sand", -3); // caretaker's dirt
 
-  // ---- perimeter wall -------------------------------------------------------
-  // Mirrors CEMETERY_STRUCTURES in @mimic/shared — the server occludes shots
-  // against those boxes, so these must line up.
-  const wallHex = "#3b3f45";
-  box("wall_s", w, 2.6, 0.8, 0, 1.3, minZ + 0.4, wallHex, true);
-  box("wall_n", w, 2.6, 0.8, 0, 1.3, maxZ - 0.4, wallHex, true);
-  box("wall_w", 0.8, 2.6, d, minX + 0.4, 1.3, 0, wallHex, true);
-  box("wall_e", 0.8, 2.6, d, maxX - 0.4, 1.3, 0, wallHex, true);
-  // Gate piers flanking the south entrance (decorative, the wall behind is solid).
-  for (const side of [-1, 1]) {
-    box("pier", 1.2, 3.4, 1.2, side * 3.2, 1.7, minZ + 0.4, "#4a4f56");
-    cyl("pierCap", 1.05, 0.5, side * 3.2, 3.5, minZ + 0.4, "#565c64", false, 8);
+  // ---- solids ---------------------------------------------------------------
+  // Drawn straight from the shared block list. Trees are listed there too (for
+  // collision) but drawn round below, so they are skipped here.
+  const KIND_HEX: Record<string, string> = {
+    // Lighter than feels right on paper. Room walls are what you navigate by
+    // here, and at 0.34 key light a "correct" dark stone renders as a flat
+    // black silhouette you cannot read a doorway in.
+    wall: "#565e69",
+    pillar: "#6b655c",
+    altar: "#6e6860",
+    gable: "#5f6671",
+    tomb: "#6a635c",
+    plot: "#5b626c",
+    shed: "#4c453c",
+    obelisk: "#756e64",
+  };
+  for (const [i, b] of CEMETERY_BLOCKS.entries()) {
+    if (b.kind === "tree") continue;
+    const hex = KIND_HEX[b.kind] ?? "#4a4f56";
+    solidBox(`${b.kind}${i}`, b.w, b.h, b.d, b.x, b.h / 2, b.z, hex, true);
+
+    // Non-collidable detailing on top. It all sits at or above the block's own
+    // height, so it can never change where a player can walk.
+    if (b.kind === "wall" || b.kind === "plot") {
+      // A lighter cap course. On a dark wall this is the only thing that tells
+      // you where the top edge is, which is what makes a doorway readable.
+      solidBox(`cap${i}`, b.w + 0.18, 0.16, b.d + 0.18, b.x, b.h + 0.08, b.z, b.kind === "plot" ? "#767e89" : "#727b87", false, 0.1);
+    } else if (b.kind === "tomb") {
+      solidBox(`cornice${i}`, b.w + 0.5, 0.3, b.d + 0.5, b.x, b.h + 0.15, b.z, hex, false, 0.09);
+      const cap = MeshBuilder.CreateCylinder(`tombCap${i}`, { diameterTop: 0, diameterBottom: Math.max(b.w, b.d) * 1.4, height: 1.6, tessellation: 4 }, scene);
+      cap.position.set(b.x, b.h + 1.1, b.z);
+      cap.rotation.y = Math.PI / 4;
+      cap.material = grainMat(scene, hex, 0.05);
+      cap.isPickable = false;
+      // Doorway on the south face, where the alley runs.
+      solidBox(`tombFrame${i}`, 1.7, b.h * 0.72, 0.14, b.x, b.h * 0.36, b.z - b.d / 2 - 0.02, hex, false, 0.1);
+      solidBox(`tombDoor${i}`, 1.2, b.h * 0.62, 0.22, b.x, b.h * 0.31, b.z - b.d / 2 - 0.02, "#1c1e23", false, 0.02);
+    } else if (b.kind === "pillar") {
+      // Snapped off at the top — a clean cylinder would read as scaffolding.
+      const nub = MeshBuilder.CreateCylinder(`colTop${i}`, { diameter: b.w * 1.25, height: 0.5, tessellation: 6 }, scene);
+      nub.position.set(b.x, b.h + 0.18, b.z);
+      nub.rotation.z = 0.12;
+      nub.material = grainMat(scene, hex, 0.06);
+      nub.isPickable = false;
+    } else if (b.kind === "shed") {
+      solidBox(`shedRoof${i}`, b.w + 0.7, 0.28, b.d + 0.7, b.x, b.h + 0.14, b.z, "#2e2a25", false, 0.04);
+    } else if (b.kind === "altar") {
+      solidBox(`altarTop${i}`, b.w + 0.4, 0.22, b.d + 0.4, b.x, b.h + 0.11, b.z, "#777065", false, 0.11);
+    } else if (b.kind === "gable") {
+      // A cornice course plus a pediment, so the surviving end reads as a
+      // building rather than a billboard.
+      solidBox(`gableCap${i}`, b.w + 0.3, 0.2, b.d + 0.3, b.x, b.h + 0.1, b.z, "#727b87", false, 0.1);
+      // Two sloped slabs meeting at an apex. A cone with three sides looks like
+      // a spike from the nave floor; this actually reads as a roofline.
+      const run = b.w * 0.3;
+      const rise = 2.3;
+      const pitch = Math.atan2(rise, run);
+      for (const sx of [-1, 1]) {
+        const rafter = MeshBuilder.CreateBox(`gableTop${i}${sx}`, { width: Math.hypot(run, rise) + 0.3, height: 0.45, depth: b.d + 0.25 }, scene);
+        rafter.position.set(b.x + sx * (run / 2), b.h + rise / 2, b.z);
+        rafter.rotation.z = -sx * pitch;
+        rafter.material = grainMat(scene, hex, 0.07);
+        rafter.isPickable = false;
+      }
+      for (const sx of [-1, 1]) {
+        solidBox(`gableBtr${i}${sx}`, 1.1, b.h * 0.78, 1.1, b.x + sx * (b.w / 2 - 0.8), b.h * 0.39, b.z - 0.8, hex, false, 0.08);
+      }
+    } else if (b.kind === "obelisk") {
+      const spire = MeshBuilder.CreateCylinder("obeliskTip", { diameterTop: 0, diameterBottom: b.w * 1.05, height: 2.4, tessellation: 4 }, scene);
+      spire.position.set(b.x, b.h + 1.2, b.z);
+      spire.rotation.y = Math.PI / 4;
+      spire.material = grainMat(scene, hex, 0.06);
+      spire.isPickable = false;
+      solidBox("obeliskBase", b.w + 1.4, 0.6, b.d + 1.4, b.x, 0.3, b.z, "#565049", false, 0.08);
+    }
   }
 
-  // ---- chapel ---------------------------------------------------------------
-  box("chapel", 16, 7, 11, 0, 3.5, 20, "#4b4741", true);
-  box("chapel_porch", 6, 3.4, 2.2, 0, 1.7, 13.6, "#544f48", true);
-  // Buttresses, a plinth course and a recessed doorway. Without them the front
-  // is a 16m blank slab with a window stuck on it, which reads as unfinished
-  // from anywhere on the main path.
-  for (const bx of [-7.2, -4.4, 4.4, 7.2]) box("chapelBtr", 0.9, 5.6, 0.9, bx, 2.8, 14.9, "#544f48");
-  box("chapelPlinth", 16.6, 0.5, 11.6, 0, 0.25, 20, "#403c37");
-  box("chapelDoorArch", 3.2, 3.0, 0.3, 0, 1.5, 12.42, "#5b564e");
-  box("chapelDoor", 2.3, 2.6, 0.22, 0, 1.3, 12.36, "#241f1a");
-  // Roof + steeple, non-collidable (they sit above head height).
-  const roof = MeshBuilder.CreateCylinder("chapelRoof", { diameterTop: 0, diameterBottom: 23, height: 6.2, tessellation: 4 }, scene);
-  roof.position.set(0, 9.2, 20);
-  roof.rotation.y = Math.PI / 4;
-  roof.material = grainMat(scene, "#463f37", 0.06);
-  roof.isPickable = false;
-  cyl("steeple", 1.7, 6, 0, 14.2, 20, "#3a3733", false, 6);
-  // Rose window — the one warm light in the place. Bright enough that the glow
-  // layer picks it up (>= 0.6 on a channel), which also keeps the include-list
-  // non-empty on this map.
+  // ---- the chapel's rose window ---------------------------------------------
+  // Set in the surviving gable end, 5.4m up: the one warm light on the map and
+  // the only thing tall enough to see over the room walls from the crossing.
+  // Bright enough that the glow layer picks it up (>= 0.6 on a channel), which
+  // also keeps the include-list non-empty on this map.
   const glassMat = new StandardMaterial("chapelGlass", scene);
   glassMat.emissiveColor = new Color3(1, 0.72, 0.3);
   glassMat.disableLighting = true;
   const rose = MeshBuilder.CreateCylinder("chapelRose", { diameter: 2.4, height: 0.2, tessellation: 16 }, scene);
-  rose.position.set(0, 6.2, 14.42);
+  rose.position.set(-16.5, 5.4, 23.4);
   rose.rotation.x = Math.PI / 2;
   rose.material = glassMat;
   rose.isPickable = false;
 
-  // ---- crypts ---------------------------------------------------------------
-  // `face` is the direction the doorway looks, so each crypt opens onto the path
-  // it stands beside rather than at a wall.
-  const crypt = (name: string, W: number, D: number, H: number, x: number, z: number, hex: string, face: -1 | 1) => {
-    box(name, W, H, D, x, H / 2, z, hex, true);
-    // Corner pilasters + a hipped cap that actually spans the tomb, so it reads
-    // as masonry instead of a grey packing crate.
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        box(name + "_col", 0.5, H + 0.18, 0.5, x + sx * (W / 2 - 0.2), (H + 0.18) / 2, z + sz * (D / 2 - 0.2), hex, false, 0.09);
-      }
-    }
-    box(name + "_cornice", W + 0.5, 0.28, D + 0.5, x, H + 0.14, z, hex, false, 0.09);
-    const cap = MeshBuilder.CreateCylinder(name + "_cap", { diameterTop: 0, diameterBottom: Math.max(W, D) * 1.44, height: 1.5, tessellation: 4 }, scene);
-    cap.position.set(x, H + 1.0, z);
-    cap.rotation.y = Math.PI / 4;
-    cap.material = grainMat(scene, hex, 0.05);
-    cap.isPickable = false;
-    // Recessed doorway on the face that looks toward the path.
-    const dz = z + face * (D / 2 + 0.02);
-    box(name + "_frame", 1.55, H * 0.74, 0.12, x, H * 0.37, dz, hex, false, 0.1);
-    box(name + "_door", 1.15, H * 0.64, 0.2, x, H * 0.32, dz, "#1c1e23", false, 0.02);
-  };
-  crypt("crypt_e0", 6, 5, 3.4, 22, -13, "#635d55", -1);
-  crypt("crypt_e1", 6, 5, 3.4, 22, -3, "#5e5852", -1);
-  crypt("crypt_e2", 6, 5, 3.4, 22, 7, "#635d55", -1);
-  crypt("crypt_w0", 5.5, 5.5, 3, -22, -8, "#5a5651", 1);
-  crypt("crypt_w1", 4.5, 6.5, 2.8, -23, 6, "#5f5a53", 1);
-
-  // ---- caretaker's corner ---------------------------------------------------
-  box("shed", 7, 2.8, 5, -24, 1.4, -20, "#403a33", true);
-  const shedRoof = MeshBuilder.CreateBox("shedRoof", { width: 7.6, height: 0.25, depth: 5.6 }, scene);
-  shedRoof.position.set(-24, 2.9, -20);
-  shedRoof.material = grainMat(scene, "#2e2a25", 0.04);
-  shedRoof.isPickable = false;
-  box("lean_to", 3, 2.2, 3, -17.5, 1.1, -21, "#443e37", true);
-
-  // ---- interior stone dividers ---------------------------------------------
-  box("divider_a", 0.7, 1.6, 14, -6, 0.8, -2, "#454a50", true);
-  box("divider_b", 0.7, 1.6, 12, 9, 0.8, 4, "#454a50", true);
-  box("divider_c", 13, 1.5, 0.7, 4, 0.75, -14, "#454a50", true);
-
   // ---- dead trees -----------------------------------------------------------
-  // Bare, clawing branches — no canopy, so they block sight without hiding the
-  // whole field the way the backyard's foliage does.
+  // Bare, clawing branches — no canopy, so they break a sightline without
+  // blanketing a whole lane the way the backyard's foliage does.
   for (const [i, [tx, tz]] of CEMETERY_TREES.entries()) {
-    cyl(`deadTrunk${i}`, 1.1, 5.5, tx, 2.75, tz, "#332b25", true, 8);
+    const trunk = MeshBuilder.CreateCylinder(`deadTrunk${i}`, { diameter: 1.1, height: 5.5, tessellation: 8 }, scene);
+    trunk.position.set(tx, 2.75, tz);
+    trunk.material = grainMat(scene, "#332b25", 0.07);
+    trunk.checkCollisions = true;
+    trunk.isPickable = true;
+    colliders.push(trunk);
     for (let b = 0; b < 5; b++) {
       const a = (b / 5) * Math.PI * 2 + i;
       const limb = MeshBuilder.CreateCylinder(`limb${i}_${b}`, { diameterTop: 0.05, diameterBottom: 0.22, height: 2.6, tessellation: 5 }, scene);
@@ -645,8 +659,8 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
   }
 
   // ---- moon -----------------------------------------------------------------
-  const moonDisc = MeshBuilder.CreateSphere("moonDisc", { diameter: 7, segments: 14 }, scene);
-  moonDisc.position.set(-46, 40, 54);
+  const moonDisc = MeshBuilder.CreateSphere("moonDisc", { diameter: 6, segments: 14 }, scene);
+  moonDisc.position.set(-42, 36, 48);
   const mm = new StandardMaterial("moonMat", scene);
   mm.emissiveColor = new Color3(0.86, 0.9, 1);
   mm.disableLighting = true;
@@ -916,10 +930,6 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
       add(MeshBuilder.CreateTorus(name + "_hd", { diameter: r * 1.5, thickness: 0.07, tessellation: 12 }, scene), h * 0.85).rotation.x = Math.PI / 2;
       break;
     }
-    case "pallet_stack":
-    case "toolbox":
-    case "crate_small":
-    case "crate_large":
     case "headstone": {
       // Slab with a rounded top on a wider plinth.
       add(MeshBuilder.CreateBox(name + "_base", { width: r * 2.1, height: 0.14, depth: r * 1.15 }, scene), 0.07);
@@ -958,6 +968,12 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
       add(MeshBuilder.CreateBox(name + "_lid", { width: r * 1.3, height: 0.08, depth: r * 2.1 }, scene), h * 0.86).material = mat(scene, "#3f2f22");
       break;
     }
+    // NOTE: everything below falls through to `default:` for a plain box.
+    // Add new cases ABOVE this comment, never between here and `default:`.
+    case "pallet_stack":
+    case "toolbox":
+    case "crate_small":
+    case "crate_large":
     default: {
       add(MeshBuilder.CreateBox(name + "_x", { width: r * 2, height: h, depth: r * 2 }, scene), h / 2);
       break;

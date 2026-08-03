@@ -2,15 +2,43 @@
 """
 Generate the Hollow Row cemetery map as TypeScript.
 
-Placing ~70 props by hand and hoping they don't intersect is how you get props
-embedded in walls and spawns inside headstones. So the layout is solved here
-against the same rules the test suite enforces:
+DESIGN NOTE — why this is not another open field
+------------------------------------------------
+The first pass at this map was a big rectangle with a perimeter wall and props
+sprinkled over it. That is structurally the same map as Sunnyside Yard with
+different furniture: one space, every sightline available from everywhere, and
+hiding reduced to "stand still somewhere far away".
 
-  * props never overlap each other        (tests/map-layout.test.mjs)
-  * props never overlap solid structures  (visual + spawn correctness)
-  * every occluder is taller than the 0.45m step height
-                                          (tests/step-offset.test.mjs)
-  * spawns land clear                     (tests/spawn-clearance.test.mjs)
+This version is built as FOUR ENCLOSED ROOMS around a cross of open lanes:
+
+                          N
+        +--------------------------------------+
+        |  chapel ruin      |    tomb alley    |
+        |  (roofless nave)  |  (3 mausoleums)  |
+        |===== doorway =====|==== doorway =====|
+     W  |         c e n t r a l   c r o s s    |  E
+        |===== doorway =====|==== doorway =====|
+        |  family plots     |  caretaker yard  |
+        |  (low pen walls)  |  (shed + gate)   |
+        +--------------------------------------+
+                          S   <- hunters enter here
+
+Consequences that matter for play:
+  * A hunter in the lane can see a long way but into nothing. Every hider is
+    behind a wall until the hunter commits to a doorway.
+  * Each room has its OWN prop vocabulary — pews in the chapel, mausoleum
+    stonework in the alley, headstones in the plots, tools in the yard. Picking
+    the right disguise for the room you are in becomes a real decision, which
+    is the whole point of prop hunt. On one uniform field it never was.
+  * The family plots use LOW walls (1.1m): you can see over them but not walk
+    through, so that quadrant reads as cover rather than as another box maze.
+
+Prop count is deliberately less than half the first pass. Clutter is not
+content — 130 props on one field meant no prop was a landmark and the frame was
+soup. Each room now gets the smallest set that still gives hiders real choice.
+
+The client draws its geometry straight from CEMETERY_BLOCKS, and the server's
+occluders are derived from the SAME array, so the two can never drift apart.
 
 Deterministic: fixed seed, so re-running produces the identical map.
 """
@@ -20,126 +48,175 @@ import random
 random.seed(20260803)
 
 # --- bounds -----------------------------------------------------------------
-# Tighter than the backyard (96x88). A cemetery should feel closed-in, and a
-# smaller map keeps every sound meaningfully audible.
-MIN_X, MAX_X = -34.0, 34.0
-MIN_Z, MAX_Z = -29.0, 29.0
+# Smaller than the first pass (68x58). Rooms make a map feel big; floor area
+# just makes it empty.
+MIN_X, MAX_X = -30.0, 30.0
+MIN_Z, MAX_Z = -25.0, 25.0
 WIDTH, DEPTH = MAX_X - MIN_X, MAX_Z - MIN_Z
 WALL_H = 3.0
 STEP_HEIGHT = 0.45  # must stay in sync with InputController
 
+# Lane geometry. The cross of open ground that every room opens onto.
+LANE = 4.0  # half-width of each lane, so the lanes are 8m across
+
 # --- prop models used here (radius, height) ---------------------------------
 MODELS = {
-    # new, cemetery-specific
     "headstone":    (0.45, 1.00),
     "grave_cross":  (0.35, 1.30),
     "urn":          (0.34, 0.80),
     "angel_statue": (0.45, 1.70),
     "coffin":       (0.70, 0.60),
-    # existing models, reused as groundskeeping clutter
-    "bush":         (0.60, 0.95),
+    "bench":        (0.85, 0.85),
     "rock":         (0.55, 0.60),
     "tree_stump":   (0.50, 0.60),
-    "plant":        (0.40, 1.20),
-    "planter":      (0.60, 0.60),
-    "flower_pot":   (0.35, 0.70),
     "lantern":      (0.28, 0.75),
-    "bench":        (0.85, 0.85),
-    "wheelbarrow":  (0.60, 0.70),
+    "flower_pot":   (0.35, 0.70),
     "barrel":       (0.42, 1.15),
     "crate_small":  (0.45, 0.90),
     "crate_large":  (0.70, 1.40),
     "bucket":       (0.30, 0.50),
-    "bin":          (0.40, 1.05),
-    "trash_can":    (0.35, 1.00),
     "toolbox":      (0.50, 0.55),
     "pallet_stack": (0.75, 1.10),
-    "mushroom":     (0.35, 0.70),
-    "pumpkin":      (0.45, 0.55),
-    "birdhouse":    (0.34, 0.85),
-    "watering_can": (0.38, 0.65),
-    "cooler":       (0.50, 0.60),
+    "wheelbarrow":  (0.60, 0.70),
     "tire":         (0.50, 0.80),
+    "cooler":       (0.50, 0.60),
 }
 
-# --- solid structures --------------------------------------------------------
-# (cx, cz, width_x, depth_z, height, label). Every one is well above STEP_HEIGHT
-# so nothing here becomes walk-through.
-STRUCTURES = []
+# --- blocks ------------------------------------------------------------------
+# One list, drawn by the client and turned into occluders by the server. `kind`
+# only picks the material on the client; collision comes from the same numbers.
+BLOCKS = []
 
-def solid(cx, cz, w, d, h, label):
+def block(cx, cz, w, d, h, kind, label):
     assert h > STEP_HEIGHT + 0.05, f"{label} is {h}m — at or under the step height, players would walk through it"
-    STRUCTURES.append(dict(cx=cx, cz=cz, w=w, d=d, h=h, label=label))
+    assert w > 0 and d > 0, f"{label} has a zero dimension"
+    BLOCKS.append(dict(cx=round(cx, 2), cz=round(cz, 2), w=round(w, 2), d=round(d, 2),
+                       h=h, kind=kind, label=label))
 
-# Perimeter wall — four slabs just inside the bounds.
-solid(0, MIN_Z + 0.4, WIDTH, 0.8, 2.6, "wall_s")
-solid(0, MAX_Z - 0.4, WIDTH, 0.8, 2.6, "wall_n")
-solid(MIN_X + 0.4, 0, 0.8, DEPTH, 2.6, "wall_w")
-solid(MAX_X - 0.4, 0, 0.8, DEPTH, 2.6, "wall_e")
+def span_x(x0, x1, z, thick, h, kind, label):
+    """A wall running along x from x0 to x1, centred on z."""
+    block((x0 + x1) / 2, z, x1 - x0, thick, h, kind, label)
 
-# Chapel (north-centre) — the landmark, with a porch you can duck behind.
-solid(0, 20.0, 16.0, 11.0, 7.0, "chapel")
-solid(0, 13.6, 6.0, 2.2, 3.4, "chapel_porch")
+def span_z(z0, z1, x, thick, h, kind, label):
+    """A wall running along z from z0 to z1, centred on x."""
+    block(x, (z0 + z1) / 2, thick, z1 - z0, h, kind, label)
 
-# Mausoleum row (east) — three tombs with gaps to slip between.
-for i, z in enumerate((-13.0, -3.0, 7.0)):
-    solid(22.0, z, 6.0, 5.0, 3.4, f"crypt_e{i}")
+# Perimeter.
+span_x(MIN_X, MAX_X, MIN_Z + 0.4, 0.8, 2.8, "wall", "perim_s")
+span_x(MIN_X, MAX_X, MAX_Z - 0.4, 0.8, 2.8, "wall", "perim_n")
+span_z(MIN_Z, MAX_Z, MIN_X + 0.4, 0.8, 2.8, "wall", "perim_w")
+span_z(MIN_Z, MAX_Z, MAX_X - 0.4, 0.8, 2.8, "wall", "perim_e")
 
-# Older tombs (west)
-solid(-22.0, -8.0, 5.5, 5.5, 3.0, "crypt_w0")
-solid(-23.0, 6.0, 4.5, 6.5, 2.8, "crypt_w1")
+# --- room shells -------------------------------------------------------------
+# Each room is closed off from the lanes except for one doorway per side. The
+# doorways are 4m so two players can pass, and deliberately NOT aligned across
+# the map: a hunter standing in the crossing can never see into two rooms at
+# once.
+ROOM_WALL_H = 3.2
+DOOR = 4.0
 
-# Caretaker's shed (south-west corner) and its lean-to.
-solid(-24.0, -20.0, 7.0, 5.0, 2.8, "shed")
-solid(-17.5, -21.0, 3.0, 3.0, 2.2, "lean_to")
+def wall_with_door(axis, a0, a1, fixed, door_at, h, label):
+    """A run of wall with a DOOR-wide hole centred on `door_at`."""
+    lo, hi = door_at - DOOR / 2, door_at + DOOR / 2
+    assert a0 < lo and hi < a1, f"{label}: doorway {door_at} is not inside the wall run"
+    if axis == "x":
+        span_x(a0, lo, fixed, 0.7, h, "wall", label + "_a")
+        span_x(hi, a1, fixed, 0.7, h, "wall", label + "_b")
+    else:
+        span_z(a0, lo, fixed, 0.7, h, "wall", label + "_a")
+        span_z(hi, a1, fixed, 0.7, h, "wall", label + "_b")
 
-# Interior stone dividers — sightline breakers between the grave fields.
-solid(-6.0, -2.0, 0.7, 14.0, 1.6, "divider_a")
-solid(9.0, 4.0, 0.7, 12.0, 1.6, "divider_b")
-solid(4.0, -14.0, 13.0, 0.7, 1.5, "divider_c")
+# North-west: the chapel ruin. Doors on the south and the east.
+wall_with_door("x", MIN_X, -LANE, LANE, -19.0, ROOM_WALL_H, "chapel_s")
+wall_with_door("z", LANE, MAX_Z, -LANE, 17.0, ROOM_WALL_H, "chapel_e")
+# North-east: the tomb alley. Doors on the south and the west, offset from the
+# chapel's so the crossing never opens both at once.
+wall_with_door("x", LANE, MAX_X, LANE, 11.0, ROOM_WALL_H, "alley_s")
+wall_with_door("z", LANE, MAX_Z, LANE, 21.0, ROOM_WALL_H, "alley_w")
+# South-west: the family plots. Doors on the north and the east.
+wall_with_door("x", MIN_X, -LANE, -LANE, -21.0, ROOM_WALL_H, "plots_n")
+wall_with_door("z", MIN_Z, -LANE, -LANE, -16.5, ROOM_WALL_H, "plots_e")
+# South-east: the caretaker's yard. Doors on the north and the west.
+wall_with_door("x", LANE, MAX_X, -LANE, 13.0, ROOM_WALL_H, "yard_n")
+wall_with_door("z", MIN_Z, -LANE, LANE, -10.0, ROOM_WALL_H, "yard_w")
 
-# Dead trees — round, so approximate them as square footprints for clearance.
-TREES = [(-13.0, 14.0), (14.0, -20.0), (-30.0, 18.0), (28.0, 21.0), (-3.0, -24.0)]
+# --- room interiors ----------------------------------------------------------
+# Chapel ruin (NW): a nave. Two rows of broken columns down the middle and an
+# altar block at the north end. Roofless, so moonlight reaches the floor — a
+# roofed interior on a night map is a black hole you cannot fight in.
+for i, cz in enumerate((9.5, 13.5, 17.5, 21.0)):
+    block(-22.0, cz, 0.9, 0.9, 4.2, "pillar", f"chapel_colw{i}")
+    block(-11.0, cz, 0.9, 0.9, 4.2, "pillar", f"chapel_cole{i}")
+block(-16.5, 22.0, 5.0, 1.4, 1.2, "altar", "chapel_altar")
+# The surviving gable end, twice the height of anything else on the map. It
+# carries the lit window and stands well clear of the 3.2m room walls, so from
+# anywhere in the crossing it tells you which way is north. Every map needs one
+# thing you can navigate by; on a dark map it has to be tall AND lit.
+block(-16.5, 23.9, 13.0, 0.9, 8.0, "gable", "chapel_gable")
+# A fallen section of the west wall, so the ruin reads as ruined.
+block(-27.0, 15.0, 2.4, 3.2, 1.0, "wall", "chapel_rubble")
+
+# Tomb alley (NE): three mausoleums with gaps, forming two north-south alleys
+# you have to walk into. Solid: these are the map's hard cover.
+for i, cx in enumerate((10.5, 17.5, 24.5)):
+    block(cx, 15.0, 4.8, 11.0, 3.6, "tomb", f"tomb{i}")
+
+# Family plots (SW): three pens of LOW wall. You can see over them, so this
+# quadrant is about partial cover and angles rather than blind corners.
+PLOT_H = 1.1
+for i, (px, pz) in enumerate(((-23.0, -18.0), (-11.5, -18.0), (-23.0, -9.0))):
+    span_x(px - 4.0, px + 4.0, pz - 3.0, 0.5, PLOT_H, "plot", f"plot{i}_s")
+    span_x(px - 4.0, px + 4.0, pz + 3.0, 0.5, PLOT_H, "plot", f"plot{i}_n")
+    span_z(pz - 3.0, pz + 3.0, px - 4.0, 0.5, PLOT_H, "plot", f"plot{i}_w")
+
+# Caretaker's yard (SE): the shed is the only true building, plus its lean-to.
+block(22.0, -19.0, 8.0, 6.0, 3.0, "shed", "shed")
+block(14.5, -20.5, 3.4, 3.4, 2.2, "shed", "lean_to")
+block(24.0, -9.0, 6.0, 1.0, 1.4, "plot", "yard_stack")
+
+# The crossing: one obelisk dead centre. It is the only thing breaking the two
+# 50m lane sightlines, and it is what you steer by when you have lost the plot.
+block(0.0, 0.0, 2.2, 2.2, 6.0, "obelisk", "obelisk")
+
+# --- dead trees --------------------------------------------------------------
+# Round, so approximate them as square footprints for clearance. Placed at the
+# lane mouths where they break a straight run without closing it.
+TREES = [(-6.5, 8.0), (6.5, -8.0), (-6.5, -20.0), (6.5, 20.0)]
 for i, (tx, tz) in enumerate(TREES):
-    solid(tx, tz, 1.1, 1.1, 5.5, f"tree{i}")
+    block(tx, tz, 1.1, 1.1, 5.5, "tree", f"tree{i}")
 
 # --- spawns ------------------------------------------------------------------
-# Hunters enter through the south gate, together and away from the graves.
-HUNTER_SPAWNS = [(x, -26.0) for x in (-9, -6, -3, 0, 3, 6, 9)] + [(0.0, -23.5)]
-# Props scatter across the grave fields and the crypt aisles.
+# Hunters enter together at the south mouth of the main lane and have to choose
+# a room. Two hiders start in each room, so no room is empty at the whistle.
+HUNTER_SPAWNS = [(x, -22.5) for x in (-3.0, -1.5, 0.0, 1.5, 3.0)] + [(-2.0, -20.0), (0.0, -20.0), (2.0, -20.0)]
 PROP_SPAWNS = [
-    (-14.0, -6.0), (13.0, -8.0), (-16.0, 2.0), (16.0, 12.0),
-    (-9.0, 22.0), (7.0, 24.0), (-27.0, -12.0), (27.0, -22.0),
+    (-16.0, 12.0), (-13.0, 20.0),      # chapel ruin
+    (13.5, 11.0), (21.0, 20.0),        # tomb alley
+    (-16.5, -22.5), (-25.5, -12.8),    # family plots
+    (11.0, -13.0), (25.0, -23.0),      # caretaker's yard
 ]
 
 # --- placement helpers -------------------------------------------------------
 PLACED = []  # (x, z, radius)
 
-def hits_structure(x, z, r, pad=0.25):
-    for s in STRUCTURES:
-        hw, hd = s["w"] / 2 + r + pad, s["d"] / 2 + r + pad
-        if abs(x - s["cx"]) < hw and abs(z - s["cz"]) < hd:
+def hits_block(x, z, r, pad=0.3):
+    for s in BLOCKS:
+        if abs(x - s["cx"]) < s["w"] / 2 + r + pad and abs(z - s["cz"]) < s["d"] / 2 + r + pad:
             return True
     return False
 
-def hits_prop(x, z, r, gap=0.18):
-    for (px, pz, pr) in PLACED:
-        if math.hypot(x - px, z - pz) < r + pr + gap:
-            return True
-    return False
+def hits_prop(x, z, r, gap=0.35):
+    return any(math.hypot(x - px, z - pz) < r + pr + gap for (px, pz, pr) in PLACED)
 
-def hits_spawn(x, z, r, clear=2.2):
-    for (sx, sz) in HUNTER_SPAWNS + PROP_SPAWNS:
-        if math.hypot(x - sx, z - sz) < r + clear:
-            return True
-    return False
+def hits_spawn(x, z, r, clear=2.0):
+    return any(math.hypot(x - sx, z - sz) < r + clear for (sx, sz) in HUNTER_SPAWNS + PROP_SPAWNS)
 
 def free(x, z, r):
     if not (MIN_X + 1.6 + r < x < MAX_X - 1.6 - r):
         return False
     if not (MIN_Z + 1.6 + r < z < MAX_Z - 1.6 - r):
         return False
-    return not (hits_structure(x, z, r) or hits_prop(x, z, r) or hits_spawn(x, z, r))
+    return not (hits_block(x, z, r) or hits_prop(x, z, r) or hits_spawn(x, z, r))
 
 PROPS = []
 
@@ -152,7 +229,7 @@ def place(model, x, z, ry=None):
                       ry=round(random.uniform(0, math.tau) if ry is None else ry, 3)))
     return True
 
-def scatter(model, count, x0, x1, z0, z1, tries=400):
+def scatter(model, count, x0, x1, z0, z1, tries=600):
     made = 0
     for _ in range(tries):
         if made >= count:
@@ -161,56 +238,67 @@ def scatter(model, count, x0, x1, z0, z1, tries=400):
             made += 1
     return made
 
-# --- grave rows --------------------------------------------------------------
-# Regular rows read as a real graveyard, and give hiders a crowd to blend into.
-# All headstones in a row share a facing, like real plots.
-rows = [
-    (-28.0, -4.0, -18.0, 0.0),   # west field
-    (-28.0, -4.0, -13.5, 0.0),
-    (-28.0, -4.0, -9.0, 0.0),
-    (1.0, 17.0, -20.0, 0.0),     # south-east field
-    (1.0, 17.0, -16.0, 0.0),
-    (-20.0, -9.0, 10.0, math.pi),   # north-west field
-    (-20.0, -9.0, 15.0, math.pi),
-    (2.0, 16.0, 15.0, math.pi),  # north-east field
-]
-row_marks = 0
-for (x0, x1, z, facing) in rows:
+def row(model, x0, x1, z, step, facing=0.0, jitter=0.18):
+    made = 0
     x = x0
     while x <= x1:
-        model = "headstone"
-        roll = random.random()
-        if roll < 0.16:
-            model = "grave_cross"
-        elif roll < 0.24:
-            model = "urn"
-        if place(model, x + random.uniform(-0.22, 0.22), z + random.uniform(-0.3, 0.3), facing + random.uniform(-0.05, 0.05)):
-            row_marks += 1
-        x += 2.4
+        if place(model, x + random.uniform(-jitter, jitter), z + random.uniform(-jitter, jitter),
+                 facing + random.uniform(-0.04, 0.04)):
+            made += 1
+        x += step
+    return made
 
-# --- landmarks and clutter ---------------------------------------------------
 counts = {}
-counts["angel_statue"] = scatter("angel_statue", 4, -26, 26, -18, 24)
-counts["coffin"] = scatter("coffin", 3, -26, 26, -22, 24)
-# Groundskeeper's corner. Kept to a strip along the south-west wall, BEHIND the
-# shed and clear of every grave row: these are the only saturated props on the
-# map (red buckets, a blue barrel, orange crates) and among headstones at night
-# they are the first thing your eye lands on, which looks like a mistake.
-for model, n in (("wheelbarrow", 2), ("barrel", 4), ("crate_small", 4), ("crate_large", 2),
-                 ("bucket", 3), ("toolbox", 2), ("pallet_stack", 2), ("tire", 2), ("cooler", 1)):
-    counts[model] = scatter(model, n, -31, -11, -26.5, -22.5)
-# Scattered stonework outside the tidy rows: leaning markers, family urns and a
-# few crosses, so the fields don't read as a single grid.
-for model, n in (("headstone", 10), ("urn", 6), ("grave_cross", 5)):
-    counts[model] = counts.get(model, 0) + scatter(model, n, -30, 30, -25, 25)
-# Groundcover and lamps. Deliberately limited to things that belong in a
-# graveyard at night. Pumpkins, toadstools, birdhouses and the backyard's
-# vivid-green bush are all excluded: their palette is tuned for a sunlit lawn
-# and at night they glow like stickers against the dark grass.
-for model, n in (("rock", 9), ("tree_stump", 6), ("lantern", 8), ("bench", 5)):
-    counts[model] = scatter(model, n, -31, 31, -26, 26)
-# A handful of grave flowers, kept to the tended plots near the chapel.
-counts["flower_pot"] = scatter("flower_pot", 4, -14, 14, 4, 22)
+def tally(model, n):
+    counts[model] = counts.get(model, 0) + n
+
+# ---- chapel ruin: pews down the nave, rubble, a lamp or two ----------------
+# Two pew rows either side of the central aisle. Benches are the room's
+# signature: a bench anywhere else on the map is conspicuous.
+for cz in (10.5, 12.5, 15.5, 18.0, 20.5):
+    tally("bench", row("bench", -19.5, -17.5, cz, 2.6, facing=0.0))
+    tally("bench", row("bench", -15.0, -13.0, cz, 2.6, facing=0.0))
+# Rubble, kept to the collapsed west wall. The rock model is a near-white
+# boulder — anywhere near the aisle it reads as a mistake rather than debris.
+tally("rock", scatter("rock", 3, -28.5, -23.5, 9.0, 22.0))
+tally("urn", scatter("urn", 2, -27, -8, 8.5, 22.5))
+tally("lantern", scatter("lantern", 2, -27, -8, 8.5, 22.5))
+
+# ---- tomb alley: stonework in the two alleys and along the west end --------
+tally("headstone", row("headstone", 6.2, 8.2, 10.0, 2.0, facing=math.pi))
+tally("headstone", row("headstone", 6.2, 8.2, 20.0, 2.0, facing=math.pi))
+tally("angel_statue", scatter("angel_statue", 2, 6.0, 28.0, 8.5, 23.0))
+tally("grave_cross", scatter("grave_cross", 2, 6.0, 28.0, 8.5, 23.0))
+tally("urn", scatter("urn", 2, 6.0, 28.0, 8.5, 23.0))
+# Lanterns placed by hand at both alley mouths and the far end. Random scatter
+# left the alleys pitch dark on some seeds, and an unlit corridor is not
+# atmosphere, it is a room nobody enters.
+for (lx, lz) in ((13.9, 10.0), (20.9, 10.0), (13.9, 20.5), (20.9, 20.5)):
+    tally("lantern", 1 if place("lantern", lx, lz) else 0)
+tally("coffin", scatter("coffin", 1, 6.0, 28.0, 8.5, 23.0))
+
+# ---- family plots: headstones inside the pens, flowers at the gates --------
+for (px, pz) in ((-23.0, -18.0), (-11.5, -18.0), (-23.0, -9.0)):
+    tally("headstone", row("headstone", px - 2.6, px + 2.6, pz + 1.4, 2.6, facing=0.0))
+    tally("headstone", row("headstone", px - 2.6, px + 2.6, pz - 1.2, 2.6, facing=0.0))
+tally("grave_cross", scatter("grave_cross", 2, -28, -6, -23, -6))
+tally("flower_pot", scatter("flower_pot", 2, -28, -6, -23, -6))
+tally("urn", scatter("urn", 1, -28, -6, -23, -6))
+
+# ---- caretaker's yard: the only saturated props on the map, all in one room
+for model, n in (("crate_small", 3), ("barrel", 3), ("crate_large", 1), ("bucket", 2),
+                 ("toolbox", 1), ("pallet_stack", 1), ("wheelbarrow", 1), ("tire", 1), ("cooler", 1)):
+    tally(model, scatter(model, n, 6.0, 28.0, -23.5, -6.0))
+tally("tree_stump", scatter("tree_stump", 2, 6.0, 28.0, -23.5, -6.0))
+
+# ---- the lanes: sparse on purpose. This is the space you fight in. ---------
+# Lane lanterns at the four doorways, so a doorway is a lit gap in a dark wall
+# rather than something you walk past twice.
+for (lx, lz) in ((-5.2, -19.0), (5.2, 11.0), (-5.2, 17.0), (5.2, -10.0), (-19.0, -5.2), (13.0, 5.2)):
+    tally("lantern", 1 if place("lantern", lx, lz) else 0)
+tally("bench", scatter("bench", 2, -3.4, 3.4, -18, 18))
+# Nothing else in the lanes: this is the ground you fight over, and a prop
+# standing in it is a hider with nowhere to blend in.
 
 # --- verify against the same rules the test suite uses -----------------------
 errs = []
@@ -222,24 +310,81 @@ for i in range(len(PROPS)):
         if dist + 0.01 < need:
             errs.append(f"props {i}/{j} overlap: {dist:.2f} < {need:.2f}")
 for p in PROPS:
-    if hits_structure(p["x"], p["z"], MODELS[p["model"]][0], pad=0.0):
-        errs.append(f"prop {p['model']} at ({p['x']},{p['z']}) is inside a structure")
-for s in STRUCTURES:
+    if hits_block(p["x"], p["z"], MODELS[p["model"]][0], pad=0.0):
+        errs.append(f"prop {p['model']} at ({p['x']},{p['z']}) is inside a block")
+for s in BLOCKS:
     if s["h"] <= STEP_HEIGHT:
-        errs.append(f"structure {s['label']} is walk-through at {s['h']}m")
+        errs.append(f"block {s['label']} is walk-through at {s['h']}m")
+
+# Every spawn must be standable: clear of blocks by at least the player radius.
+PLAYER_R = 0.4
+for (sx, sz) in HUNTER_SPAWNS + PROP_SPAWNS:
+    if hits_block(sx, sz, PLAYER_R, pad=0.15):
+        errs.append(f"spawn ({sx},{sz}) is inside a block")
+
+# Every room must be reachable from the hunters' start. Flood-fill a 0.5m grid,
+# so a doorway accidentally walled shut by a later edit fails the build rather
+# than the match.
+STEP = 0.5
+def walkable(x, z):
+    return (MIN_X + 1.2 < x < MAX_X - 1.2 and MIN_Z + 1.2 < z < MAX_Z - 1.2
+            and not hits_block(x, z, PLAYER_R, pad=0.05))
+
+start = HUNTER_SPAWNS[2]
+seen = set()
+stack = [(round(start[0] / STEP), round(start[1] / STEP))]
+while stack:
+    cell = stack.pop()
+    if cell in seen:
+        continue
+    gx, gz = cell
+    if not walkable(gx * STEP, gz * STEP):
+        continue
+    seen.add(cell)
+    stack.extend([(gx + 1, gz), (gx - 1, gz), (gx, gz + 1), (gx, gz - 1)])
+
+for (sx, sz) in PROP_SPAWNS:
+    if (round(sx / STEP), round(sz / STEP)) not in seen:
+        errs.append(f"prop spawn ({sx},{sz}) is walled off from the hunters' start")
+
+near = lambda p: any((round(p["x"] / STEP) + dx, round(p["z"] / STEP) + dz) in seen
+                     for dx in range(-3, 4) for dz in range(-3, 4))
+sealed = [p for p in PROPS if not near(p)]
+if sealed:
+    errs.append(f"{len(sealed)} props sit in sealed pockets, e.g. {sealed[0]}")
+
 if errs:
     raise SystemExit("LAYOUT INVALID:\n" + "\n".join(errs))
 
 # --- emit --------------------------------------------------------------------
-def occ_line(s):
-    return (f"  occ({s['cx']}, {s['cz']}, {s['w']}, {s['d']}, {s['h']}), // {s['label']}")
-
 lines = []
-lines.append("/** Solid structures on the cemetery — mirrors the collidable meshes the")
-lines.append(" *  client builds in mapBuilder's buildCemetery(). */")
-lines.append("export const CEMETERY_STRUCTURES: Occluder[] = [")
-lines += [occ_line(s) for s in STRUCTURES]
+lines.append("/**")
+lines.append(" * Hollow Row's solid geometry — generated by tools/gen_cemetery.py.")
+lines.append(" *")
+lines.append(" * The client builds its meshes from this array and the server derives its")
+lines.append(" * occluders from the same entries, so the thing you see and the thing that")
+lines.append(" * stops a bullet cannot drift apart. `kind` only selects a material.")
+lines.append(" */")
+lines.append("export interface CemeteryBlock {")
+lines.append("  /** Footprint centre. */")
+lines.append("  x: number;")
+lines.append("  z: number;")
+lines.append("  /** Footprint size on x and z, and height from the ground. */")
+lines.append("  w: number;")
+lines.append("  d: number;")
+lines.append("  h: number;")
+lines.append('  kind: "wall" | "pillar" | "altar" | "gable" | "tomb" | "plot" | "shed" | "obelisk" | "tree";')
+lines.append("}")
+lines.append("")
+lines.append("export const CEMETERY_BLOCKS: CemeteryBlock[] = [")
+for s in BLOCKS:
+    lines.append(f'  {{ x: {s["cx"]}, z: {s["cz"]}, w: {s["w"]}, d: {s["d"]}, h: {s["h"]}, kind: "{s["kind"]}" }}, // {s["label"]}')
 lines.append("];")
+lines.append("")
+lines.append("/** Occluders derived from the blocks above — never hand-written. */")
+lines.append("export const CEMETERY_STRUCTURES: Occluder[] = CEMETERY_BLOCKS.map((b) =>")
+lines.append("  occ(b.x, b.z, b.w, b.d, b.h),")
+lines.append(");")
 lines.append("")
 lines.append("/** Dead trees (x, z) — the client draws trunks and bare branches here. */")
 lines.append("export const CEMETERY_TREES: Array<[number, number]> = [")
@@ -249,6 +394,7 @@ lines.append("")
 lines.append("export const HOLLOW_ROW: MapDefinition = {")
 lines.append('  id: "hollow_row",')
 lines.append('  displayName: "Hollow Row",')
+lines.append('  tagline: "Four walled rooms around a crossing. Midnight, and fog.",')
 lines.append('  theme: "cemetery",')
 lines.append(f"  width: {WIDTH},")
 lines.append(f"  depth: {DEPTH},")
@@ -271,11 +417,10 @@ lines.append("};")
 
 open("/tmp/spawn/cemetery_block.ts", "w").write("\n".join(lines) + "\n")
 
-print(f"structures : {len(STRUCTURES)}")
-print(f"grave marks: {row_marks}")
-print(f"props total: {len(PROPS)}")
 from collections import Counter
-c = Counter(p["model"] for p in PROPS)
-print("prop mix   :", ", ".join(f"{k} x{v}" for k, v in c.most_common()))
 print(f"map        : {WIDTH:.0f} x {DEPTH:.0f} m, diagonal {math.hypot(WIDTH, DEPTH):.1f} m")
-print("layout verified: no prop/prop, prop/structure overlaps; all structures above step height")
+print(f"blocks     : {len(BLOCKS)}")
+print(f"props total: {len(PROPS)}")
+print("prop mix   :", ", ".join(f"{k} x{v}" for k, v in Counter(p['model'] for p in PROPS).most_common()))
+print(f"walkable   : {len(seen)} cells reachable from the hunters' start; all 8 prop spawns connected")
+print("layout verified: no prop/prop or prop/block overlaps, no walk-through blocks, no sealed pockets")
