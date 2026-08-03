@@ -75,8 +75,10 @@ const gameServer = new Server({
   }),
 });
 
-// One room type. filterBy(["mode"]) keeps public matchmaking from mixing modes.
-gameServer.define("game", GameRoom).filterBy(["mode"]);
+// One room type. The matchmaking filter keeps public games from mixing modes.
+// Public matchmaking pairs players by mode AND by map, so picking Hollow Row in
+// the menu cannot drop you into somebody else's Depot 7 game.
+gameServer.define("game", GameRoom).filterBy(["mode", "mapId"]);
 
 gameServer
   .listen(PORT)

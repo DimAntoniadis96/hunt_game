@@ -2250,3 +2250,90 @@ body.reduce-motion *::after {
 .name-hint.bad {
   color: #ff8a80;
 }
+
+/* ---- map picker (main menu) --------------------------------------------
+   One card per map from MAP_ORDER. Deliberately a column rather than a
+   grid: three cards side by side squeeze the tagline to two words, and the
+   tagline is the part that tells a new player what they are choosing. */
+.map-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.map-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #0b0f16;
+  color: var(--text);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.map-card:hover {
+  border-color: #3c4a5e;
+  background: #0e141d;
+}
+.map-card.selected {
+  border-color: var(--accent);
+  background: rgba(55, 217, 160, 0.08);
+  box-shadow: 0 0 0 3px rgba(55, 217, 160, 0.13);
+}
+.map-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+.map-card.selected .map-name {
+  color: var(--accent);
+}
+.map-tag {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.map-size {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #5d6b7d;
+}
+
+/* Which map this room is playing. Shown in the lobby because a player who
+   joined by room code never saw the picker. */
+.lobby-map {
+  margin: 14px 0 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(55, 217, 160, 0.06);
+}
+.lobby-map-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lobby-map-name {
+  display: block;
+  margin-top: 1px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.lobby-map-tag {
+  display: block;
+  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--muted);
+}

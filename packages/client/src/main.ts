@@ -152,7 +152,10 @@ function onState(state: any) {
   const phase: Phase = state.phase;
 
   // Lobby list stays fresh while the lobby screen is up.
-  if (phase === Phase.Lobby || phase === Phase.Countdown) screens.updateLobby(state);
+  if (phase === Phase.Lobby || phase === Phase.Countdown) {
+    screens.updateLobby(state);
+    screens.setLobbyMap(state.mapId);
+  }
 
   if (phase !== Phase.Lobby && !scene) enterGame();
   if (phase === Phase.Lobby && scene) {

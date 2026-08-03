@@ -7,8 +7,10 @@ import {
 } from "@mimic/shared";
 
 export type ConnectMode =
-  | { kind: "public"; name: string }
-  | { kind: "create"; name: string }
+  // `mapId` is only meaningful when we are the ones creating the room. Joining
+  // by code puts you on whatever map that room already runs.
+  | { kind: "public"; name: string; mapId: string }
+  | { kind: "create"; name: string; mapId: string }
   | { kind: "join"; name: string; code: string };
 
 interface FlatSeatReservation {
@@ -64,9 +66,11 @@ export class NetworkClient {
   async connect(mode: ConnectMode): Promise<Room> {
     let room: Room;
     if (mode.kind === "public") {
-      room = await this.client.joinOrCreate("game", { mode: "public", name: mode.name });
+      // mapId is part of the matchmaking filter, so joinOrCreate only reuses a
+      // room already playing this map and otherwise starts a fresh one.
+      room = await this.client.joinOrCreate("game", { mode: "public", name: mode.name, mapId: mode.mapId });
     } else if (mode.kind === "create") {
-      room = await this.client.create("game", { mode: "private", name: mode.name });
+      room = await this.client.create("game", { mode: "private", name: mode.name, mapId: mode.mapId });
     } else {
       const code = mode.code.toUpperCase().trim();
       const res = await fetch(`${this.httpBase}/api/rooms/${encodeURIComponent(code)}`);

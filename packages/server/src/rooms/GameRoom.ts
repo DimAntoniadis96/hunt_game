@@ -7,6 +7,7 @@ import {
   FLASHBANG_COOLDOWN_MS,
   FLASHBANG_RANGE,
   DEFAULT_MAP_ID,
+  isMapId,
   GRAVITY,
   MAX_DECOYS_PER_PLAYER,
   HUNT_SECONDS,
@@ -72,6 +73,12 @@ const COPY_RANGE = 6.0;
 interface JoinOptions {
   name?: string;
   mode?: "public" | "private";
+  /**
+   * Map the creating client asked for. NEVER trusted directly — an unknown id
+   * would leave the room with no geometry, so it is gated on isMapId() and
+   * falls back to the default.
+   */
+  mapId?: string;
 }
 
 /** Per-connection ephemeral bookkeeping the schema shouldn't carry. */
@@ -101,11 +108,12 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   async onCreate(options: JoinOptions) {
     this.setState(new GameState());
-    this.state.mapId = DEFAULT_MAP_ID;
+    // The client picks the map; the server decides whether that pick is real.
+    this.state.mapId = isMapId(options?.mapId) ? options.mapId : DEFAULT_MAP_ID;
     this.state.roundsPerMatch = ROUNDS_PER_MATCH;
 
     this.roomCode = await this.reserveUniqueCode();
-    await this.setMetadata({ roomCode: this.roomCode, mode: options.mode ?? "public" });
+    await this.setMetadata({ roomCode: this.roomCode, mode: options.mode ?? "public", mapId: this.state.mapId });
 
     // Private rooms are excluded from public matchmaking but joinable by id/code.
     if (options.mode === "private") this.setPrivate(true);
@@ -116,7 +124,7 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.setSimulationInterval((dt) => this.update(dt), Math.round(1000 / SERVER_TICK_RATE));
     this.setPatchRate(Math.round(1000 / STATE_PATCH_RATE));
 
-    console.log(`[GameRoom] created ${this.roomId} code=${this.roomCode} mode=${options.mode ?? "public"}`);
+    console.log(`[GameRoom] created ${this.roomId} code=${this.roomCode} mode=${options.mode ?? "public"} map=${this.state.mapId}`);
   }
 
   async onJoin(client: Client, options: JoinOptions) {

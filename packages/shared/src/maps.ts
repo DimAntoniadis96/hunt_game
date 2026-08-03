@@ -62,6 +62,8 @@ export interface Occluder {
 export interface MapDefinition {
   id: string;
   displayName: string;
+  /** One line shown under the name in the map picker. */
+  tagline: string;
   /** Visual style the client builds the environment for. */
   theme: "warehouse" | "backyard" | "cemetery";
   /** Floor size for the procedural room (metres). */
@@ -148,6 +150,7 @@ export const PROP_MODELS: Record<string, PropModel> = {
 /** First shipping map: a compact original warehouse. */
 export const DEPOT_7: MapDefinition = {
   id: "depot7",
+  tagline: "Tight industrial floor. Nowhere far to run.",
   displayName: "Depot 7",
   theme: "warehouse",
   width: 34,
@@ -220,6 +223,7 @@ export const BACKYARD_HEDGES: Occluder[] = [
  */
 export const BACKYARD: MapDefinition = {
   id: "backyard",
+  tagline: "A wide suburban garden in full daylight.",
   displayName: "Sunnyside Yard",
   theme: "backyard",
   width: 96,
@@ -435,6 +439,7 @@ export const CEMETERY_TREES: Array<[number, number]> = [
 
 export const HOLLOW_ROW: MapDefinition = {
   id: "hollow_row",
+  tagline: "A fogged graveyard at midnight. Bring a torch.",
   displayName: "Hollow Row",
   theme: "cemetery",
   width: 68.0,
@@ -595,6 +600,14 @@ export const HOLLOW_ROW: MapDefinition = {
   ],
   occluders: CEMETERY_STRUCTURES,
 };
+
+/** Every map in the order players should see them offered. */
+export const MAP_ORDER = ["depot7", "backyard", "hollow_row"] as const;
+
+/** True if `id` names a real map — always gate client-supplied ids on this. */
+export function isMapId(id: unknown): id is string {
+  return typeof id === "string" && Object.prototype.hasOwnProperty.call(MAPS, id);
+}
 
 export const MAPS: Record<string, MapDefinition> = {
   [DEPOT_7.id]: DEPOT_7,

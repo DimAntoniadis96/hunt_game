@@ -1,8 +1,12 @@
 import {
+  DEFAULT_MAP_ID,
+  MAPS,
+  MAP_ORDER,
   MAX_NAME_LENGTH,
   MIN_NAME_LENGTH,
   MIN_PLAYERS_TO_START,
   Team,
+  isMapId,
   nameError,
   nameLength,
   sanitizeName,
@@ -29,6 +33,25 @@ function saveName(n: string) {
   }
 }
 
+/** Last map the player chose. Validated on read: a stored id can outlive the
+ *  map it names if a map is ever renamed or removed. */
+function loadMapId(): string {
+  try {
+    const id = localStorage.getItem("mimic:mapId");
+    if (isMapId(id)) return id;
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_MAP_ID;
+}
+function saveMapId(id: string) {
+  try {
+    localStorage.setItem("mimic:mapId", id);
+  } catch {
+    /* ignore */
+  }
+}
+
 export class Screens {
   private root: HTMLElement;
   private menu: HTMLElement;
@@ -38,6 +61,8 @@ export class Screens {
   private tutStep = 0;
   private tutAutoShown = false;
   private roomCode = "";
+  /** Map the player has selected in the menu; persisted between visits. */
+  private mapId = loadMapId();
   private copyHintTimer = 0;
 
   onConnect?: (mode: ConnectMode) => void;
@@ -64,7 +89,10 @@ export class Screens {
         </div>
         <p class="name-hint" id="name-hint" data-r="namehint">${MIN_NAME_LENGTH}-${MAX_NAME_LENGTH} characters.</p>
 
-        <div class="step"><span class="step-num">2</span><label>Jump in and play</label></div>
+        <div class="step"><span class="step-num">2</span><label>Pick a map</label></div>
+        <div class="map-picker" data-r="maps" role="radiogroup" aria-label="Map"></div>
+
+        <div class="step"><span class="step-num">3</span><label>Jump in and play</label></div>
         <button class="cta" data-a="public">
           <span class="cta-icon" aria-hidden="true">▶</span>
           <span class="cta-text">Quick Play<small>Start a public game right now</small></span>
@@ -95,6 +123,7 @@ export class Screens {
     this.lobby.innerHTML = `
       <div class="card lobby-card">
         <div class="brand"><h1>Lobby</h1></div>
+        <div class="lobby-map" data-r="lobbymap"></div>
         <div data-r="codewrap">
           <label>Room code — share to invite friends</label>
           <button class="code-pill" data-r="code" data-a="copycode" type="button" title="Click to copy the invite link">
@@ -174,13 +203,43 @@ export class Screens {
       return n;
     };
 
+    // ---- map picker ----------------------------------------------------
+    // Built from MAP_ORDER rather than hardcoded, so adding a map to
+    // @mimic/shared puts it in this list with no UI change.
+    const mapsEl = this.menu.querySelector<HTMLElement>('[data-r="maps"]')!;
+    mapsEl.innerHTML = MAP_ORDER.map((id) => {
+      const m = MAPS[id];
+      return `<button type="button" class="map-card" role="radio" data-map="${id}" aria-checked="false">
+          <span class="map-name">${m.displayName}</span>
+          <span class="map-tag">${m.tagline}</span>
+          <span class="map-size">${Math.round(m.width)}x${Math.round(m.depth)}m &middot; ${m.props.length} props</span>
+        </button>`;
+    }).join("");
+
+    const paintMap = () => {
+      for (const el of mapsEl.querySelectorAll<HTMLElement>(".map-card")) {
+        const on = el.dataset.map === this.mapId;
+        el.classList.toggle("selected", on);
+        el.setAttribute("aria-checked", on ? "true" : "false");
+      }
+    };
+    mapsEl.addEventListener("click", (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>(".map-card");
+      const id = card?.dataset.map;
+      if (!isMapId(id)) return;
+      this.mapId = id;
+      saveMapId(id);
+      paintMap();
+    });
+    paintMap();
+
     this.menu.querySelector('[data-a="public"]')!.addEventListener("click", () => {
       const n = getName();
-      if (n) this.onConnect?.({ kind: "public", name: n });
+      if (n) this.onConnect?.({ kind: "public", name: n, mapId: this.mapId });
     });
     this.menu.querySelector('[data-a="create"]')!.addEventListener("click", () => {
       const n = getName();
-      if (n) this.onConnect?.({ kind: "create", name: n });
+      if (n) this.onConnect?.({ kind: "create", name: n, mapId: this.mapId });
     });
     this.menu.querySelector('[data-a="join"]')!.addEventListener("click", () => {
       const n = getName();
@@ -424,6 +483,16 @@ export class Screens {
     this.lobby.querySelector<HTMLElement>('[data-r="codetext"]')!.textContent = code || "—";
     this.roomCode = code;
     this.setReadyButton(false); // fresh lobby: primary action is "Ready up" again
+  }
+
+  /** Show which map this room is playing. Players who joined by room code did
+   *  not pick it, so without this they walk in blind. */
+  setLobbyMap(mapId: string) {
+    const el = this.lobby.querySelector<HTMLElement>('[data-r="lobbymap"]')!;
+    const m = isMapId(mapId) ? MAPS[mapId] : MAPS[DEFAULT_MAP_ID];
+    el.innerHTML = `<span class="lobby-map-label">Map</span>
+      <span class="lobby-map-name">${m.displayName}</span>
+      <span class="lobby-map-tag">${m.tagline}</span>`;
   }
 
   updateLobby(state: LobbyState) {
