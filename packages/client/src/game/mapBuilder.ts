@@ -561,11 +561,18 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
   // ---- chapel ---------------------------------------------------------------
   box("chapel", 16, 7, 11, 0, 3.5, 20, "#4b4741", true);
   box("chapel_porch", 6, 3.4, 2.2, 0, 1.7, 13.6, "#544f48", true);
+  // Buttresses, a plinth course and a recessed doorway. Without them the front
+  // is a 16m blank slab with a window stuck on it, which reads as unfinished
+  // from anywhere on the main path.
+  for (const bx of [-7.2, -4.4, 4.4, 7.2]) box("chapelBtr", 0.9, 5.6, 0.9, bx, 2.8, 14.9, "#544f48");
+  box("chapelPlinth", 16.6, 0.5, 11.6, 0, 0.25, 20, "#403c37");
+  box("chapelDoorArch", 3.2, 3.0, 0.3, 0, 1.5, 12.42, "#5b564e");
+  box("chapelDoor", 2.3, 2.6, 0.22, 0, 1.3, 12.36, "#241f1a");
   // Roof + steeple, non-collidable (they sit above head height).
   const roof = MeshBuilder.CreateCylinder("chapelRoof", { diameterTop: 0, diameterBottom: 23, height: 6.2, tessellation: 4 }, scene);
   roof.position.set(0, 9.2, 20);
   roof.rotation.y = Math.PI / 4;
-  roof.material = grainMat(scene, "#33302c", 0.05);
+  roof.material = grainMat(scene, "#463f37", 0.06);
   roof.isPickable = false;
   cyl("steeple", 1.7, 6, 0, 14.2, 20, "#3a3733", false, 6);
   // Rose window — the one warm light in the place. Bright enough that the glow
