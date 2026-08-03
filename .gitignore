@@ -10,3 +10,7 @@ coverage/
 .vite/
 .vercel
 .env*
+
+# Scratch/backup folder. Safe to delete the whole thing at any time — nothing
+# in it is part of the project. Ignored so `git add -A` can never stage it.
+_to_delete/
