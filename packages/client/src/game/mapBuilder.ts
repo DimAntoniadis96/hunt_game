@@ -951,13 +951,27 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
       break;
     }
     case "angel_statue": {
-      // Plinth, robed body, head, and a pair of folded wings.
-      add(MeshBuilder.CreateBox(name + "_p", { width: r * 2.2, height: h * 0.2, depth: r * 2.2 }, scene), h * 0.1);
-      add(MeshBuilder.CreateCylinder(name + "_body", { diameterTop: r * 0.95, diameterBottom: r * 1.7, height: h * 0.55, tessellation: 14 }, scene), h * 0.475);
-      add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 0.62, segments: 12 }, scene), h * 0.85);
+      // Plinth, robed body, bowed head, and wings that actually clear the
+      // silhouette. Tucked inside the robe they were invisible past 5m, which
+      // made the map's signature statue read as a traffic cone.
+      add(MeshBuilder.CreateBox(name + "_p", { width: r * 2.2, height: h * 0.16, depth: r * 2.2 }, scene), h * 0.08);
+      add(MeshBuilder.CreateBox(name + "_p2", { width: r * 1.8, height: h * 0.08, depth: r * 1.8 }, scene), h * 0.2);
+      add(MeshBuilder.CreateCylinder(name + "_body", { diameterTop: r * 0.9, diameterBottom: r * 1.7, height: h * 0.52, tessellation: 14 }, scene), h * 0.5);
+      // Arms folded across the front.
       for (const side of [-1, 1]) {
-        const wing = add(MeshBuilder.CreateBox(name + "_w", { width: r * 0.26, height: h * 0.5, depth: r * 0.9 }, scene), h * 0.6, side * r * 0.6, -r * 0.15);
-        wing.rotation.z = side * 0.22;
+        const arm = add(MeshBuilder.CreateCylinder(name + "_arm", { diameter: r * 0.28, height: h * 0.3, tessellation: 8 }, scene), h * 0.6, side * r * 0.42, r * 0.28);
+        arm.rotation.set(0.5, 0, side * 0.5);
+      }
+      add(MeshBuilder.CreateCylinder(name + "_neck", { diameter: r * 0.3, height: h * 0.06, tessellation: 8 }, scene), h * 0.79);
+      const head = add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 0.66, segments: 12 }, scene), h * 0.86, 0, r * 0.06);
+      head.scaling.set(1, 1.1, 1);
+      for (const side of [-1, 1]) {
+        // Main pinion: a tall swept slab standing proud of the back.
+        const wing = add(MeshBuilder.CreateBox(name + "_w", { width: r * 0.16, height: h * 0.62, depth: r * 0.7 }, scene), h * 0.66, side * r * 0.66, -r * 0.3);
+        wing.rotation.set(-0.24, side * 0.5, side * 0.3);
+        // Feathered tip, angled up and out.
+        const tip = add(MeshBuilder.CreateCylinder(name + "_wt", { diameterTop: 0, diameterBottom: r * 0.52, height: h * 0.4, tessellation: 3 }, scene), h * 1.02, side * r * 0.86, -r * 0.42);
+        tip.rotation.set(-0.2, side * 0.5, side * 0.42);
       }
       break;
     }
@@ -966,6 +980,329 @@ export function createPropVisual(scene: Scene, modelKey: string, name: string): 
       add(MeshBuilder.CreateBox(name + "_sh", { width: r * 1.25, height: h * 0.82, depth: r * 1.05 }, scene), h * 0.41, 0, r * 0.5);
       add(MeshBuilder.CreateBox(name + "_ft", { width: r * 0.92, height: h * 0.82, depth: r * 1.05 }, scene), h * 0.41, 0, -r * 0.55);
       add(MeshBuilder.CreateBox(name + "_lid", { width: r * 1.3, height: 0.08, depth: r * 2.1 }, scene), h * 0.86).material = mat(scene, "#3f2f22");
+      break;
+    }
+    case "skull": {
+      const dark = mat(scene, "#141416");
+      add(MeshBuilder.CreateSphere(name + "_cr", { diameter: r * 1.6, segments: 10 }, scene), h * 0.62).scaling.set(1, 0.92, 1.08);
+      add(MeshBuilder.CreateBox(name + "_jaw", { width: r * 1.15, height: h * 0.2, depth: r * 1.2 }, scene), h * 0.16, 0, r * 0.1);
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateSphere(name + "_eye", { diameter: r * 0.5, segments: 6 }, scene), h * 0.68, s * r * 0.34, r * 0.62).material = dark;
+      }
+      add(MeshBuilder.CreateBox(name + "_nose", { width: r * 0.22, height: h * 0.16, depth: r * 0.2 }, scene), h * 0.46, 0, r * 0.72).material = dark;
+      break;
+    }
+    case "bone_pile": {
+      // Long bones crossed at angles with a skull resting on top. The knobbly
+      // ends are what make it read as bone rather than as dropped sticks.
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + 0.4;
+        const y = 0.09 + (i % 2) * 0.11;
+        const shaft = add(MeshBuilder.CreateCylinder(name + "_b" + i, { diameter: 0.09, height: r * 1.9 }, scene), y, Math.cos(a) * r * 0.2, Math.sin(a) * r * 0.2);
+        shaft.rotation.set(Math.PI / 2, a, 0);
+        for (const e of [-1, 1]) {
+          add(MeshBuilder.CreateSphere(name + "_k" + i + e, { diameter: 0.16, segments: 6 }, scene),
+            y, Math.cos(a) * (r * 0.2 + e * r * 0.92), Math.sin(a) * (r * 0.2 + e * r * 0.92));
+        }
+      }
+      add(MeshBuilder.CreateSphere(name + "_sk", { diameter: r * 0.85, segments: 8 }, scene), h * 0.72).scaling.set(1, 0.9, 1.1);
+      break;
+    }
+    case "skeleton": {
+      const dark = mat(scene, "#141416");
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateCylinder(name + "_leg", { diameter: 0.11, height: h * 0.46, tessellation: 8 }, scene), h * 0.23, s * r * 0.3);
+        add(MeshBuilder.CreateSphere(name + "_ft", { diameter: 0.17, segments: 6 }, scene), 0.07, s * r * 0.3, r * 0.2);
+      }
+      add(MeshBuilder.CreateBox(name + "_pel", { width: r * 1.0, height: h * 0.08, depth: r * 0.55 }, scene), h * 0.49);
+      add(MeshBuilder.CreateCylinder(name + "_spine", { diameter: 0.1, height: h * 0.3, tessellation: 6 }, scene), h * 0.66);
+      // Ribcage: three hoops, tapering upward.
+      for (let i = 0; i < 3; i++) {
+        const rib = add(MeshBuilder.CreateTorus(name + "_rib" + i, { diameter: r * 1.3 - i * 0.14, thickness: 0.055, tessellation: 12 }, scene), h * 0.56 + i * 0.09);
+        rib.rotation.x = Math.PI / 2;
+      }
+      for (const s of [-1, 1]) {
+        const arm = add(MeshBuilder.CreateCylinder(name + "_arm", { diameter: 0.085, height: h * 0.36, tessellation: 6 }, scene), h * 0.6, s * r * 0.62);
+        arm.rotation.z = s * 0.16;
+      }
+      add(MeshBuilder.CreateCylinder(name + "_neck", { diameter: 0.09, height: h * 0.06, tessellation: 6 }, scene), h * 0.81);
+      add(MeshBuilder.CreateSphere(name + "_sk", { diameter: r * 0.82, segments: 10 }, scene), h * 0.91).scaling.set(1, 0.94, 1.08);
+      add(MeshBuilder.CreateBox(name + "_jaw", { width: r * 0.55, height: h * 0.04, depth: r * 0.6 }, scene), h * 0.845, 0, r * 0.06);
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateSphere(name + "_eye", { diameter: 0.11, segments: 6 }, scene), h * 0.93, s * 0.1, r * 0.32).material = dark;
+      }
+      break;
+    }
+    case "sarcophagus": {
+      // A stone chest with a tapered lid and a carved figure on top: unmistakably
+      // not a crate, which is the whole point of it existing.
+      add(MeshBuilder.CreateBox(name + "_plinth", { width: r * 2.05, height: h * 0.14, depth: r * 1.2 }, scene), h * 0.07);
+      add(MeshBuilder.CreateBox(name + "_chest", { width: r * 1.85, height: h * 0.6, depth: r * 1.0 }, scene), h * 0.44);
+      const lid = add(MeshBuilder.CreateBox(name + "_lid", { width: r * 2.0, height: h * 0.16, depth: r * 1.12 }, scene), h * 0.82);
+      lid.material = mat(scene, "#8d8578");
+      // Effigy: a body and a head carved in relief.
+      add(MeshBuilder.CreateSphere(name + "_eff", { diameter: r * 0.75, segments: 8 }, scene), h * 0.92, -r * 0.5).scaling.set(1, 0.55, 1);
+      const body = add(MeshBuilder.CreateBox(name + "_effb", { width: r * 0.95, height: h * 0.1, depth: r * 0.5 }, scene), h * 0.9, r * 0.25);
+      body.material = mat(scene, "#8d8578");
+      break;
+    }
+    case "gargoyle": {
+      // Crouched on a plinth with folded wings and horns — a silhouette you can
+      // pick out of a wall of headstones at 20m.
+      const dark = mat(scene, "#191b1e");
+      add(MeshBuilder.CreateBox(name + "_p", { width: r * 1.8, height: h * 0.24, depth: r * 1.8 }, scene), h * 0.12);
+      add(MeshBuilder.CreateSphere(name + "_body", { diameter: r * 1.35, segments: 10 }, scene), h * 0.5).scaling.set(1, 0.85, 1.15);
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateCylinder(name + "_leg", { diameterTop: 0.13, diameterBottom: 0.2, height: h * 0.22, tessellation: 6 }, scene), h * 0.33, s * r * 0.45, r * 0.25);
+        // Folded wing: a thin swept slab standing off the back.
+        const wing = add(MeshBuilder.CreateBox(name + "_wing", { width: r * 0.16, height: h * 0.52, depth: r * 1.0 }, scene), h * 0.62, s * r * 0.72, -r * 0.15);
+        wing.rotation.set(0.18, 0, s * 0.22);
+        const tip = add(MeshBuilder.CreateCylinder(name + "_wt", { diameterTop: 0, diameterBottom: r * 0.34, height: h * 0.3, tessellation: 3 }, scene), h * 0.92, s * r * 0.78, -r * 0.2);
+        tip.rotation.z = s * 0.3;
+      }
+      add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 0.8, segments: 8 }, scene), h * 0.8, 0, r * 0.2);
+      add(MeshBuilder.CreateBox(name + "_snout", { width: r * 0.36, height: h * 0.1, depth: r * 0.45 }, scene), h * 0.76, 0, r * 0.62);
+      for (const s of [-1, 1]) {
+        const horn = add(MeshBuilder.CreateCylinder(name + "_horn", { diameterTop: 0, diameterBottom: 0.13, height: h * 0.2, tessellation: 5 }, scene), h * 0.95, s * r * 0.26, 0);
+        horn.rotation.z = s * 0.4;
+        add(MeshBuilder.CreateSphere(name + "_eye", { diameter: 0.1, segments: 6 }, scene), h * 0.83, s * r * 0.22, r * 0.5).material = dark;
+      }
+      break;
+    }
+    case "candelabra": {
+      const wax = mat(scene, "#e8e0c8");
+      const flame = mat(scene, "#ffd479", 0.85);
+      add(MeshBuilder.CreateCylinder(name + "_ft", { diameter: r * 1.7, height: h * 0.07, tessellation: 12 }, scene), h * 0.035);
+      add(MeshBuilder.CreateCylinder(name + "_stem", { diameter: 0.09, height: h * 0.72, tessellation: 8 }, scene), h * 0.4);
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        const dx = Math.cos(a) * r * 0.66, dz = Math.sin(a) * r * 0.66;
+        const armY = h * 0.7;
+        const arm = add(MeshBuilder.CreateCylinder(name + "_arm" + i, { diameter: 0.06, height: r * 1.4, tessellation: 6 }, scene), armY, dx * 0.5, dz * 0.5);
+        arm.rotation.set(Math.PI / 2, -a, 0.55);
+        add(MeshBuilder.CreateCylinder(name + "_cup" + i, { diameter: r * 0.4, height: 0.06, tessellation: 8 }, scene), h * 0.79, dx, dz);
+        add(MeshBuilder.CreateCylinder(name + "_wax" + i, { diameter: 0.13, height: h * 0.16, tessellation: 8 }, scene), h * 0.9, dx, dz).material = wax;
+        add(MeshBuilder.CreateSphere(name + "_fl" + i, { diameter: 0.12, segments: 6 }, scene), h * 1.0, dx, dz).material = flame;
+      }
+      // The tall centre candle.
+      add(MeshBuilder.CreateCylinder(name + "_waxc", { diameter: 0.15, height: h * 0.2, tessellation: 8 }, scene), h * 0.86).material = wax;
+      add(MeshBuilder.CreateSphere(name + "_flc", { diameter: 0.14, segments: 6 }, scene), h * 0.99).material = flame;
+      break;
+    }
+    case "cauldron": {
+      const ember = mat(scene, "#ff7a3c", 0.7);
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + 0.5;
+        const leg = add(MeshBuilder.CreateCylinder(name + "_lg" + i, { diameter: 0.1, height: h * 0.34, tessellation: 6 }, scene), h * 0.16, Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5);
+        leg.rotation.set(Math.cos(a) * 0.2, 0, -Math.sin(a) * 0.2);
+      }
+      add(MeshBuilder.CreateSphere(name + "_belly", { diameter: r * 1.95, segments: 12 }, scene), h * 0.6).scaling.set(1, 0.72, 1);
+      const rim = add(MeshBuilder.CreateTorus(name + "_rim", { diameter: r * 1.75, thickness: 0.08, tessellation: 14 }, scene), h * 0.86);
+      rim.rotation.x = 0;
+      add(MeshBuilder.CreateCylinder(name + "_brew", { diameter: r * 1.6, height: 0.05, tessellation: 14 }, scene), h * 0.85).material = ember;
+      break;
+    }
+    case "brazier": {
+      const ember = mat(scene, "#ff8a3a", 0.75);
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        const leg = add(MeshBuilder.CreateCylinder(name + "_lg" + i, { diameter: 0.09, height: h * 0.66, tessellation: 6 }, scene), h * 0.33, Math.cos(a) * r * 0.42, Math.sin(a) * r * 0.42);
+        leg.rotation.set(Math.cos(a) * 0.24, 0, -Math.sin(a) * 0.24);
+      }
+      add(MeshBuilder.CreateCylinder(name + "_bowl", { diameterTop: r * 2.0, diameterBottom: r * 1.1, height: h * 0.3, tessellation: 14 }, scene), h * 0.8);
+      add(MeshBuilder.CreateCylinder(name + "_coal", { diameter: r * 1.75, height: 0.06, tessellation: 14 }, scene), h * 0.93).material = ember;
+      for (let i = 0; i < 3; i++) {
+        add(MeshBuilder.CreateSphere(name + "_em" + i, { diameter: 0.11, segments: 6 }, scene), h * 0.97, (i - 1) * r * 0.45, (i % 2 ? 1 : -1) * r * 0.3).material = ember;
+      }
+      break;
+    }
+    case "scarecrow": {
+      const sack = mat(scene, "#c9b487");
+      const rag = mat(scene, "#4d4235");
+      const dark = mat(scene, "#141416");
+      add(MeshBuilder.CreateCylinder(name + "_post", { diameter: 0.15, height: h * 0.94, tessellation: 8 }, scene), h * 0.47);
+      const bar = add(MeshBuilder.CreateCylinder(name + "_bar", { diameter: 0.11, height: r * 3.1, tessellation: 6 }, scene), h * 0.7);
+      bar.rotation.z = Math.PI / 2;
+      // Sagging coat over the crossbar.
+      add(MeshBuilder.CreateBox(name + "_coat", { width: r * 1.7, height: h * 0.3, depth: r * 0.5 }, scene), h * 0.56).material = rag;
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateBox(name + "_cuff", { width: r * 0.5, height: h * 0.08, depth: r * 0.42 }, scene), h * 0.68, s * r * 1.3).material = rag;
+        // Straw poking out of the sleeves.
+        const straw = add(MeshBuilder.CreateCylinder(name + "_str", { diameterTop: 0.02, diameterBottom: 0.07, height: h * 0.1, tessellation: 5 }, scene), h * 0.63, s * r * 1.5);
+        straw.rotation.z = s * 0.7;
+      }
+      add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 1.0, segments: 10 }, scene), h * 0.86).material = sack;
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateBox(name + "_eye", { width: 0.1, height: 0.1, depth: 0.06 }, scene), h * 0.88, s * r * 0.24, r * 0.42).material = dark;
+      }
+      add(MeshBuilder.CreateBox(name + "_mouth", { width: r * 0.5, height: 0.05, depth: 0.05 }, scene), h * 0.81, 0, r * 0.45).material = dark;
+      add(MeshBuilder.CreateCylinder(name + "_brim", { diameter: r * 1.9, height: 0.05, tessellation: 12 }, scene), h * 0.93).material = rag;
+      add(MeshBuilder.CreateCylinder(name + "_crown", { diameterTop: r * 0.7, diameterBottom: r * 0.85, height: h * 0.09, tessellation: 12 }, scene), h * 0.98).material = rag;
+      break;
+    }
+    case "raven": {
+      const stone = mat(scene, "#6a6760");
+      const beak = mat(scene, "#c9a227");
+      add(MeshBuilder.CreateCylinder(name + "_perch", { diameter: r * 1.5, height: h * 0.25, tessellation: 10 }, scene), h * 0.125).material = stone;
+      add(MeshBuilder.CreateSphere(name + "_body", { diameter: r * 1.2, segments: 10 }, scene), h * 0.55).scaling.set(0.85, 1, 1.25);
+      add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 0.62, segments: 8 }, scene), h * 0.83, 0, r * 0.24);
+      const bk = add(MeshBuilder.CreateCylinder(name + "_beak", { diameterTop: 0, diameterBottom: 0.11, height: r * 0.55, tessellation: 6 }, scene), h * 0.81, 0, r * 0.62);
+      bk.rotation.x = Math.PI / 2;
+      bk.material = beak;
+      const tail = add(MeshBuilder.CreateBox(name + "_tail", { width: r * 0.42, height: 0.06, depth: r * 1.0 }, scene), h * 0.5, 0, -r * 0.75);
+      tail.rotation.x = -0.28;
+      for (const s of [-1, 1]) {
+        const wing = add(MeshBuilder.CreateBox(name + "_wing", { width: 0.06, height: r * 0.75, depth: r * 1.0 }, scene), h * 0.56, s * r * 0.5);
+        wing.rotation.z = s * 0.16;
+      }
+      break;
+    }
+    case "bat": {
+      // Roosting: hanging body, folded wings, ears. Small, so it hides in the
+      // places nothing else fits.
+      const stone = mat(scene, "#6a6760");
+      const dark = mat(scene, "#141416");
+      add(MeshBuilder.CreateCylinder(name + "_perch", { diameter: r * 1.6, height: h * 0.16, tessellation: 10 }, scene), h * 0.08).material = stone;
+      add(MeshBuilder.CreateSphere(name + "_body", { diameter: r * 1.05, segments: 10 }, scene), h * 0.5).scaling.set(0.85, 1.15, 0.85);
+      add(MeshBuilder.CreateSphere(name + "_head", { diameter: r * 0.72, segments: 8 }, scene), h * 0.84);
+      for (const s of [-1, 1]) {
+        const ear = add(MeshBuilder.CreateCylinder(name + "_ear", { diameterTop: 0, diameterBottom: r * 0.34, height: h * 0.28, tessellation: 5 }, scene), h * 0.99, s * r * 0.26);
+        ear.rotation.z = s * 0.32;
+        // Folded wing: a membrane hanging DOWN the flank, the way a roosting
+        // bat wraps itself. Held out sideways it read as a collar.
+        const wing = add(MeshBuilder.CreateBox(name + "_wing", { width: 0.06, height: h * 0.78, depth: r * 1.0 }, scene), h * 0.44, s * r * 0.52, -r * 0.02);
+        wing.rotation.set(0, 0, s * 0.1);
+        // Thumb claw hooked over the top of the wing.
+        const claw = add(MeshBuilder.CreateCylinder(name + "_claw", { diameterTop: 0, diameterBottom: 0.08, height: h * 0.24, tessellation: 5 }, scene), h * 0.78, s * r * 0.58, -r * 0.1);
+        claw.rotation.z = s * 0.75;
+        add(MeshBuilder.CreateSphere(name + "_eye", { diameter: 0.08, segments: 6 }, scene), h * 0.86, s * r * 0.16, r * 0.3).material = dark;
+      }
+      break;
+    }
+    case "grave_sword": {
+      // Driven into the earth up to the guard, the way a marker sword is.
+      const earth = mat(scene, "#463a2c");
+      const grip = mat(scene, "#3b2b1e");
+      const gold = mat(scene, "#b08d3f");
+      add(MeshBuilder.CreateCylinder(name + "_mound", { diameterTop: r * 1.5, diameterBottom: r * 2.1, height: h * 0.1, tessellation: 12 }, scene), h * 0.05).material = earth;
+      add(MeshBuilder.CreateBox(name + "_blade", { width: r * 0.42, height: h * 0.62, depth: 0.07 }, scene), h * 0.4);
+      add(MeshBuilder.CreateCylinder(name + "_tip", { diameterTop: 0, diameterBottom: r * 0.42, height: h * 0.12, tessellation: 4 }, scene), h * 0.77).scaling.set(1, 1, 0.18);
+      const guard = add(MeshBuilder.CreateBox(name + "_guard", { width: r * 1.5, height: h * 0.05, depth: 0.11 }, scene), h * 0.72);
+      guard.material = gold;
+      add(MeshBuilder.CreateCylinder(name + "_grip", { diameter: 0.11, height: h * 0.18, tessellation: 8 }, scene), h * 0.82).material = grip;
+      add(MeshBuilder.CreateSphere(name + "_pom", { diameter: 0.17, segments: 8 }, scene), h * 0.93).material = gold;
+      break;
+    }
+    case "shield": {
+      // Propped against nothing in particular, rotting where it was dropped.
+      const boss = mat(scene, "#8b8f96");
+      const face = add(MeshBuilder.CreateCylinder(name + "_face", { diameter: r * 2.0, height: 0.11, tessellation: 14 }, scene), h * 0.5);
+      face.rotation.set(Math.PI / 2 - 0.22, 0, 0);
+      face.scaling.set(1, 1, 1.12);
+      const rim = add(MeshBuilder.CreateTorus(name + "_rim", { diameter: r * 2.0, thickness: 0.09, tessellation: 16 }, scene), h * 0.5);
+      rim.rotation.set(Math.PI / 2 - 0.22, 0, 0);
+      rim.scaling.set(1, 1, 1.12);
+      rim.material = boss;
+      const b = add(MeshBuilder.CreateSphere(name + "_boss", { diameter: r * 0.6, segments: 8 }, scene), h * 0.52, 0, r * 0.22);
+      b.scaling.set(1, 1, 0.6);
+      b.material = boss;
+      // Two plank ribs so the face is not a blank disc.
+      for (const s of [-1, 1]) {
+        const plank = add(MeshBuilder.CreateBox(name + "_pl", { width: r * 0.24, height: r * 1.7, depth: 0.05 }, scene), h * 0.5, s * r * 0.55, r * 0.16);
+        plank.rotation.x = -0.22;
+        plank.material = boss;
+      }
+      break;
+    }
+    case "jack_o_lantern": {
+      // The only warm thing in the yard. The cut face is emissive but kept under
+      // the glow threshold, so it lights up without blooming across the screen.
+      const cut = mat(scene, "#ffb03a", 0.55);
+      const stem = mat(scene, "#4e5b28");
+      add(MeshBuilder.CreateSphere(name + "_body", { diameter: r * 2.0, segments: 12 }, scene), h * 0.5).scaling.set(1, 0.6, 1);
+      add(MeshBuilder.CreateCylinder(name + "_stem", { diameterTop: 0.08, diameterBottom: 0.14, height: h * 0.28, tessellation: 6 }, scene), h * 0.98).material = stem;
+      // The face has to sit on the widest part of the shell. Placed lower it
+      // ends up on the underside curve and reads as a smear of yellow rather
+      // than as eyes.
+      for (const s of [-1, 1]) {
+        const eye = add(MeshBuilder.CreateCylinder(name + "_eye", { diameterTop: 0, diameterBottom: r * 0.72, height: 0.14, tessellation: 3 }, scene), h * 0.66, s * r * 0.42, r * 0.78);
+        eye.rotation.set(Math.PI / 2, 0, Math.PI);
+        eye.material = cut;
+      }
+      const nose = add(MeshBuilder.CreateCylinder(name + "_nose", { diameterTop: 0, diameterBottom: r * 0.4, height: 0.14, tessellation: 3 }, scene), h * 0.5, 0, r * 0.86);
+      nose.rotation.x = Math.PI / 2;
+      nose.material = cut;
+      // A jagged grin: three teeth-gaps rather than one slot.
+      for (const dx of [-0.42, 0, 0.42]) {
+        add(MeshBuilder.CreateBox(name + "_tooth", { width: r * 0.34, height: h * 0.2, depth: 0.14 }, scene), h * 0.34, dx * r * 1.05, r * 0.8).material = cut;
+      }
+      add(MeshBuilder.CreateBox(name + "_grin", { width: r * 1.5, height: h * 0.08, depth: 0.14 }, scene), h * 0.28, 0, r * 0.8).material = cut;
+      break;
+    }
+    case "grave_mound": {
+      // A filled-in grave: heaped earth, a plank marker, and the spade still in it.
+      const wood = mat(scene, "#5a4530");
+      const steel = mat(scene, "#7d838b");
+      add(MeshBuilder.CreateSphere(name + "_mound", { diameter: r * 2.0, segments: 12 }, scene), h * 0.12).scaling.set(1, 0.42, 1.35);
+      // Plank cross at the head of the grave.
+      add(MeshBuilder.CreateBox(name + "_mk", { width: r * 0.24, height: h * 1.7, depth: 0.09 }, scene), h * 0.85, 0, -r * 0.9).material = wood;
+      add(MeshBuilder.CreateBox(name + "_mkx", { width: r * 0.9, height: 0.13, depth: 0.09 }, scene), h * 1.35, 0, -r * 0.9).material = wood;
+      // The spade left standing in the heap: long handle, wide blade, clear lean.
+      const shaft = add(MeshBuilder.CreateCylinder(name + "_sh", { diameter: 0.09, height: h * 2.2, tessellation: 6 }, scene), h * 1.15, r * 0.85, r * 0.35);
+      shaft.rotation.z = 0.3;
+      shaft.material = wood;
+      add(MeshBuilder.CreateBox(name + "_grip", { width: r * 0.34, height: 0.1, depth: 0.09 }, scene), h * 2.2, r * 0.5, r * 0.35).material = wood;
+      const blade = add(MeshBuilder.CreateBox(name + "_bl", { width: r * 0.55, height: h * 0.75, depth: 0.07 }, scene), h * 0.32, r * 1.1, r * 0.35);
+      blade.rotation.z = 0.3;
+      blade.material = steel;
+      break;
+    }
+    case "stone_well": {
+      const wood = mat(scene, "#4b3927");
+      const dark = mat(scene, "#0d0f12");
+      add(MeshBuilder.CreateCylinder(name + "_ring", { diameter: r * 2.0, height: h * 0.62, tessellation: 14 }, scene), h * 0.31);
+      add(MeshBuilder.CreateTorus(name + "_cap", { diameter: r * 2.0, thickness: 0.14, tessellation: 16 }, scene), h * 0.62);
+      add(MeshBuilder.CreateCylinder(name + "_hole", { diameter: r * 1.55, height: 0.05, tessellation: 14 }, scene), h * 0.61).material = dark;
+      for (const s of [-1, 1]) {
+        add(MeshBuilder.CreateBox(name + "_post", { width: 0.13, height: h * 0.42, depth: 0.13 }, scene), h * 0.83, s * r * 0.8).material = wood;
+      }
+      const beam = add(MeshBuilder.CreateCylinder(name + "_beam", { diameter: 0.13, height: r * 1.9, tessellation: 6 }, scene), h * 1.02);
+      beam.rotation.z = Math.PI / 2;
+      beam.material = wood;
+      // Roof over the shaft, so the silhouette is not just a tube.
+      const roof = add(MeshBuilder.CreateCylinder(name + "_roof", { diameterTop: 0, diameterBottom: r * 2.4, height: h * 0.22, tessellation: 4 }, scene), h * 1.1);
+      roof.rotation.y = Math.PI / 4;
+      roof.material = wood;
+      break;
+    }
+    case "broken_pillar": {
+      add(MeshBuilder.CreateBox(name + "_p", { width: r * 2.0, height: h * 0.13, depth: r * 2.0 }, scene), h * 0.065);
+      add(MeshBuilder.CreateCylinder(name + "_shaft", { diameterTop: r * 1.35, diameterBottom: r * 1.5, height: h * 0.8, tessellation: 12 }, scene), h * 0.52);
+      // Snapped at an angle, with a chunk fallen at the base.
+      // A visibly diagonal break plus a spur of stone still standing, so the
+      // silhouette says "snapped" and not "bollard".
+      const top = add(MeshBuilder.CreateCylinder(name + "_snap", { diameter: r * 1.4, height: h * 0.2, tessellation: 12 }, scene), h * 0.93);
+      top.rotation.z = 0.42;
+      const spur = add(MeshBuilder.CreateCylinder(name + "_spur", { diameterTop: 0, diameterBottom: r * 0.75, height: h * 0.3, tessellation: 5 }, scene), h * 1.05, -r * 0.4);
+      spur.rotation.z = 0.3;
+      const chunk = add(MeshBuilder.CreateBox(name + "_chunk", { width: r * 0.8, height: h * 0.22, depth: r * 0.6 }, scene), h * 0.17, r * 1.15, r * 0.4);
+      chunk.rotation.set(0.2, 0.6, 0.35);
+      break;
+    }
+    case "coffin_open": {
+      // Stood on end with the lid ajar. The tallest prop on the map and the one
+      // hiders will fight over.
+      const dark = mat(scene, "#0e1013");
+      const lidMat = mat(scene, "#3d2d20");
+      add(MeshBuilder.CreateBox(name + "_sh", { width: r * 1.55, height: h * 0.56, depth: r * 0.7 }, scene), h * 0.68);
+      add(MeshBuilder.CreateBox(name + "_ft", { width: r * 1.1, height: h * 0.42, depth: r * 0.7 }, scene), h * 0.21);
+      add(MeshBuilder.CreateBox(name + "_hd", { width: r * 1.25, height: h * 0.16, depth: r * 0.7 }, scene), h * 0.94);
+      // The hollow.
+      add(MeshBuilder.CreateBox(name + "_in", { width: r * 1.15, height: h * 0.82, depth: 0.1 }, scene), h * 0.55, 0, r * 0.33).material = dark;
+      // Lid swung open on the left.
+      const lid = add(MeshBuilder.CreateBox(name + "_lid", { width: r * 1.5, height: h * 0.9, depth: 0.09 }, scene), h * 0.55, -r * 1.15, r * 0.55);
+      lid.rotation.y = -0.85;
+      lid.material = lidMat;
       break;
     }
     // NOTE: everything below falls through to `default:` for a plain box.

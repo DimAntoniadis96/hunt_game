@@ -60,26 +60,44 @@ STEP_HEIGHT = 0.45  # must stay in sync with InputController
 LANE = 4.0  # half-width of each lane, so the lanes are 8m across
 
 # --- prop models used here (radius, height) ---------------------------------
+# EVERY entry has to belong in a graveyard. No crates, barrels, buckets, tyres,
+# pallets or toolboxes: a stack of pallets here reads as placeholder art, and a
+# hider who becomes one is announcing themselves from across the map. If a model
+# would look at home in the warehouse, it does not go on this list.
+#
+# Keep this in sync with PROP_MODELS in packages/shared/src/maps.ts — the
+# radius/height pairs are what the layout solver spaces things by.
 MODELS = {
-    "headstone":    (0.45, 1.00),
-    "grave_cross":  (0.35, 1.30),
-    "urn":          (0.34, 0.80),
-    "angel_statue": (0.45, 1.70),
-    "coffin":       (0.70, 0.60),
-    "bench":        (0.85, 0.85),
-    "rock":         (0.55, 0.60),
-    "tree_stump":   (0.50, 0.60),
-    "lantern":      (0.28, 0.75),
-    "flower_pot":   (0.35, 0.70),
-    "barrel":       (0.42, 1.15),
-    "crate_small":  (0.45, 0.90),
-    "crate_large":  (0.70, 1.40),
-    "bucket":       (0.30, 0.50),
-    "toolbox":      (0.50, 0.55),
-    "pallet_stack": (0.75, 1.10),
-    "wheelbarrow":  (0.60, 0.70),
-    "tire":         (0.50, 0.80),
-    "cooler":       (0.50, 0.60),
+    # stonework
+    "headstone":      (0.45, 1.00),
+    "grave_cross":    (0.35, 1.30),
+    "urn":            (0.34, 0.80),
+    "angel_statue":   (0.45, 1.70),
+    "sarcophagus":    (0.85, 0.95),
+    "gargoyle":       (0.46, 1.30),
+    "broken_pillar":  (0.42, 1.15),
+    "stone_well":     (0.88, 1.15),
+    # the dead
+    "coffin":         (0.70, 0.60),
+    "coffin_open":    (0.62, 1.90),
+    "skeleton":       (0.42, 1.75),
+    "skull":          (0.26, 0.34),
+    "bone_pile":      (0.55, 0.42),
+    "grave_mound":    (0.82, 0.55),
+    # light and fire
+    "lantern":        (0.28, 0.75),
+    "candelabra":     (0.30, 1.35),
+    "brazier":        (0.44, 1.05),
+    "cauldron":       (0.52, 0.80),
+    "jack_o_lantern": (0.44, 0.55),
+    # creatures and relics
+    "raven":          (0.30, 0.60),
+    "bat":            (0.32, 0.58),
+    "grave_sword":    (0.30, 1.45),
+    "shield":         (0.42, 1.05),
+    "scarecrow":      (0.45, 2.00),
+    # the chapel's pews
+    "bench":          (0.85, 0.85),
 }
 
 # --- blocks ------------------------------------------------------------------
@@ -191,7 +209,7 @@ for i, (tx, tz) in enumerate(TREES):
 HUNTER_SPAWNS = [(x, -22.5) for x in (-3.0, -1.5, 0.0, 1.5, 3.0)] + [(-2.0, -20.0), (0.0, -20.0), (2.0, -20.0)]
 PROP_SPAWNS = [
     (-16.0, 12.0), (-13.0, 20.0),      # chapel ruin
-    (13.5, 11.0), (21.0, 20.0),        # tomb alley
+    (13.5, 11.5), (21.0, 17.5),        # tomb alley — one at each alley mouth
     (-16.5, -22.5), (-25.5, -12.8),    # family plots
     (11.0, -13.0), (25.0, -23.0),      # caretaker's yard
 ]
@@ -252,53 +270,102 @@ counts = {}
 def tally(model, n):
     counts[model] = counts.get(model, 0) + n
 
-# ---- chapel ruin: pews down the nave, rubble, a lamp or two ----------------
-# Two pew rows either side of the central aisle. Benches are the room's
-# signature: a bench anywhere else on the map is conspicuous.
-for cz in (10.5, 12.5, 15.5, 18.0, 20.5):
-    tally("bench", row("bench", -19.5, -17.5, cz, 2.6, facing=0.0))
-    tally("bench", row("bench", -15.0, -13.0, cz, 2.6, facing=0.0))
-# Rubble, kept to the collapsed west wall. The rock model is a near-white
-# boulder — anywhere near the aisle it reads as a mistake rather than debris.
-tally("rock", scatter("rock", 3, -28.5, -23.5, 9.0, 22.0))
-tally("urn", scatter("urn", 2, -27, -8, 8.5, 22.5))
-tally("lantern", scatter("lantern", 2, -27, -8, 8.5, 22.5))
+# ---- fixed lighting, placed before anything else --------------------------
+# These are asserted, not scattered. place() fails silently when something is
+# in the way, and a scatter that ran first would quietly take a lamp's spot —
+# leaving a 12m corridor with no light in it, which is a room players never
+# enter. Claiming the lit positions up front makes that impossible.
+# Candelabra flanking the altar, lit. They are the reason you can see the far
+# end of the nave at all.
+for (cx, cz) in ((-20.4, 22.4), (-12.6, 22.4)):
+    assert place("candelabra", cx, cz), f"altar candelabra at ({cx},{cz}) was blocked"
+    tally("candelabra", 1)
+# Hand-placed and ASSERTED: place() fails silently if something is in the way,
+# and a silently-dropped lantern here means a 12m corridor with no light in it,
+# which is a room players simply do not enter.
+for (lx, lz) in ((14.0, 8.6), (21.0, 8.6), (14.0, 15.0), (21.0, 15.0), (14.0, 21.4), (21.0, 21.4)):
+    assert place("lantern", lx, lz), f"alley lantern at ({lx},{lz}) was blocked"
+    tally("lantern", 1)
+# Braziers at the alley mouths: warmer and taller than a lantern, so from the
+# crossing you can see there is something lit down there worth walking into.
+for (bx, bz) in ((14.0, 22.6), (21.0, 22.6)):
+    assert place("brazier", bx, bz), f"alley brazier at ({bx},{bz}) was blocked"
+    tally("brazier", 1)
+# Lane lanterns at the four doorways, so a doorway is a lit gap in a dark wall
+# rather than something you walk past twice.
+for (lx, lz) in ((-5.2, -19.0), (5.2, 11.0), (-5.2, 17.0), (5.2, -10.0), (-18.0, -5.3), (13.0, 5.3)):
+    assert place("lantern", lx, lz), f"lane lantern at ({lx},{lz}) was blocked"
+    tally("lantern", 1)
 
-# ---- tomb alley: stonework in the two alleys and along the west end --------
-tally("headstone", row("headstone", 6.2, 8.2, 10.0, 2.0, facing=math.pi))
-tally("headstone", row("headstone", 6.2, 8.2, 20.0, 2.0, facing=math.pi))
-tally("angel_statue", scatter("angel_statue", 2, 6.0, 28.0, 8.5, 23.0))
-tally("grave_cross", scatter("grave_cross", 2, 6.0, 28.0, 8.5, 23.0))
-tally("urn", scatter("urn", 2, 6.0, 28.0, 8.5, 23.0))
+# Each room draws from its own vocabulary. Two rooms sharing a model is fine;
+# a model appearing in all four is not, because then knowing the room tells you
+# nothing about what to become.
+
+# ---- chapel ruin: pews, candles, and what the roof left behind -------------
+# Two pew rows either side of the central aisle. Pews are the room's signature —
+# a bench anywhere else on the map is conspicuous.
+# Placed explicitly rather than scattered: pews in a row is the whole read, and
+# the row spacing has to clear the bench radius (0.85) or half of them get
+# rejected as overlapping and the nave ends up half empty.
+for cz in (10.0, 12.4, 14.8, 17.2, 19.6):
+    for cx in (-19.6, -13.4):
+        tally("bench", 1 if place("bench", cx, cz, 0.0) else 0)
+tally("candelabra", scatter("candelabra", 2, -27, -8, 9.0, 20.0))
+# Fallen masonry along the collapsed west wall.
+tally("broken_pillar", scatter("broken_pillar", 3, -28.5, -23.0, 9.0, 22.0))
+tally("urn", scatter("urn", 2, -27, -8, 8.5, 22.5))
+tally("brazier", scatter("brazier", 2, -27, -8, 8.5, 22.5))
+tally("skull", scatter("skull", 2, -28, -8, 8.5, 22.5))
+tally("bat", scatter("bat", 2, -28, -8, 8.5, 22.5))
+
+# ---- tomb alley: the stone-carving room ------------------------------------
+tally("sarcophagus", scatter("sarcophagus", 3, 6.0, 28.0, 8.5, 23.0))
+tally("angel_statue", scatter("angel_statue", 3, 6.0, 28.0, 8.5, 23.0))
+tally("gargoyle", scatter("gargoyle", 3, 6.0, 28.0, 8.5, 23.0))
+tally("coffin_open", scatter("coffin_open", 2, 6.0, 28.0, 8.5, 23.0))
+tally("raven", scatter("raven", 3, 6.0, 28.0, 8.5, 23.0))
+tally("grave_cross", row("grave_cross", 6.2, 8.2, 10.0, 2.0, facing=math.pi))
+tally("urn", row("urn", 6.2, 8.2, 20.0, 2.0, facing=math.pi))
 # Lanterns placed by hand at both alley mouths and the far end. Random scatter
 # left the alleys pitch dark on some seeds, and an unlit corridor is not
 # atmosphere, it is a room nobody enters.
-for (lx, lz) in ((13.9, 10.0), (20.9, 10.0), (13.9, 20.5), (20.9, 20.5)):
-    tally("lantern", 1 if place("lantern", lx, lz) else 0)
-tally("coffin", scatter("coffin", 1, 6.0, 28.0, 8.5, 23.0))
 
-# ---- family plots: headstones inside the pens, flowers at the gates --------
+# ---- family plots: the headstone room --------------------------------------
 for (px, pz) in ((-23.0, -18.0), (-11.5, -18.0), (-23.0, -9.0)):
     tally("headstone", row("headstone", px - 2.6, px + 2.6, pz + 1.4, 2.6, facing=0.0))
     tally("headstone", row("headstone", px - 2.6, px + 2.6, pz - 1.2, 2.6, facing=0.0))
-tally("grave_cross", scatter("grave_cross", 2, -28, -6, -23, -6))
-tally("flower_pot", scatter("flower_pot", 2, -28, -6, -23, -6))
-tally("urn", scatter("urn", 1, -28, -6, -23, -6))
+# Warrior graves: a sword driven into the earth and a shield left beside it.
+tally("grave_sword", scatter("grave_sword", 3, -28, -6, -23, -6))
+tally("shield", scatter("shield", 2, -28, -6, -23, -6))
+tally("grave_cross", scatter("grave_cross", 3, -28, -6, -23, -6))
+# No grave flowers: the flower_pot model's blooms are backyard primary reds and
+# yellows, and at night they are the single brightest thing in the quadrant.
+# Realistic for a cemetery, wrong for this one.
+tally("urn", scatter("urn", 3, -28, -6, -23, -6))
+tally("bone_pile", scatter("bone_pile", 2, -28, -6, -23, -6))
+tally("skull", scatter("skull", 2, -28, -6, -23, -6))
+tally("lantern", scatter("lantern", 2, -28, -6, -23, -6))
 
-# ---- caretaker's yard: the only saturated props on the map, all in one room
-for model, n in (("crate_small", 3), ("barrel", 3), ("crate_large", 1), ("bucket", 2),
-                 ("toolbox", 1), ("pallet_stack", 1), ("wheelbarrow", 1), ("tire", 1), ("cooler", 1)):
-    tally(model, scatter(model, n, 6.0, 28.0, -23.5, -6.0))
-tally("tree_stump", scatter("tree_stump", 2, 6.0, 28.0, -23.5, -6.0))
+# ---- gravedigger's yard: the working end of a cemetery ----------------------
+# Was a builder's yard full of crates and tyres, which is the one thing on this
+# map that could have been lifted straight out of the warehouse. It is now where
+# the digging actually happens.
+tally("grave_mound", scatter("grave_mound", 4, 7.0, 28.0, -23.0, -6.5))
+tally("bone_pile", scatter("bone_pile", 4, 7.0, 28.0, -23.0, -6.5))
+tally("skeleton", scatter("skeleton", 3, 7.0, 28.0, -23.0, -6.5))
+tally("coffin", scatter("coffin", 3, 7.0, 28.0, -23.0, -6.5))
+tally("cauldron", scatter("cauldron", 2, 7.0, 28.0, -23.0, -6.5))
+tally("jack_o_lantern", scatter("jack_o_lantern", 3, 7.0, 28.0, -23.0, -6.5))
+tally("skull", scatter("skull", 3, 7.0, 28.0, -23.0, -6.5))
+tally("scarecrow", scatter("scarecrow", 2, 7.0, 28.0, -23.0, -6.5))
+tally("stone_well", 1 if place("stone_well", 10.5, -8.5) else 0)
+tally("brazier", scatter("brazier", 2, 7.0, 28.0, -23.0, -6.5))
 
 # ---- the lanes: sparse on purpose. This is the space you fight in. ---------
-# Lane lanterns at the four doorways, so a doorway is a lit gap in a dark wall
-# rather than something you walk past twice.
-for (lx, lz) in ((-5.2, -19.0), (5.2, 11.0), (-5.2, 17.0), (5.2, -10.0), (-19.0, -5.2), (13.0, 5.2)):
-    tally("lantern", 1 if place("lantern", lx, lz) else 0)
-tally("bench", scatter("bench", 2, -3.4, 3.4, -18, 18))
-# Nothing else in the lanes: this is the ground you fight over, and a prop
-# standing in it is a hider with nowhere to blend in.
+# A raven on the obelisk steps and one at each lane end. Nothing else: this is
+# the ground you fight over, and a prop standing in it is a hider with nowhere
+# to blend in.
+tally("raven", scatter("raven", 3, -3.4, 3.4, -20, 20))
 
 # --- verify against the same rules the test suite uses -----------------------
 errs = []

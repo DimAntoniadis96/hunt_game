@@ -94,7 +94,42 @@ for (const key of MUST_BE_DISTINCT) {
   check(!fallsToDefault.has(key), `"${key}" draws real geometry rather than the plain fallback box`);
 }
 
-// ---- 4. the guard comment is still there ------------------------------------
+// ---- 4. Hollow Row stays a graveyard ----------------------------------------
+// The cemetery started out furnished with crates, barrels, buckets, tyres and
+// pallet stacks, which is warehouse dressing. A prop that belongs to another
+// map's palette is the loudest thing in the frame, and a hider who becomes one
+// is announcing themselves.
+const OFF_THEME = [
+  "crate_small", "crate_large", "barrel", "bucket", "bin", "trash_can", "toolbox",
+  "pallet_stack", "tire", "cooler", "wheelbarrow", "traffic_cone", "propane_tank",
+  "ac_unit", "beach_ball", "soccer_ball", "rubber_duck", "flamingo", "garden_gnome",
+  "bbq_grill", "picnic_basket", "lawn_chair", "watering_can", "dog_bowl", "dog_house",
+  "bird_bath", "birdhouse", "mailbox", "snowman", "cactus", "pumpkin", "mushroom",
+  "flower_pot", "watermelon", "teapot", "planter", "bush", "plant", "fire_hydrant",
+];
+const cemetery = MAPS.hollow_row;
+check(!!cemetery, "the cemetery map exists");
+const cemModels = new Set(cemetery.props.map((p) => p.modelKey));
+for (const key of OFF_THEME) {
+  check(!cemModels.has(key), `Hollow Row must not place "${key}" — it belongs to the warehouse or the backyard`);
+}
+// Variety is the other half of the ask: a graveyard of nothing but headstones
+// gives a hider exactly one choice.
+check(cemModels.size >= 20, `Hollow Row draws on ${cemModels.size} distinct models`);
+const HORROR_STAPLES = ["skeleton", "skull", "bone_pile", "coffin", "coffin_open", "sarcophagus",
+  "gargoyle", "grave_sword", "shield", "bat", "raven", "scarecrow", "cauldron", "jack_o_lantern"];
+for (const key of HORROR_STAPLES) {
+  check(cemModels.has(key), `Hollow Row places "${key}"`);
+}
+// No single model may dominate: at 40%+ of the room the map reads as one prop
+// repeated, which is what the first pass looked like.
+const tally = {};
+for (const p of cemetery.props) tally[p.modelKey] = (tally[p.modelKey] ?? 0) + 1;
+const [topKey, topN] = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+check(topN / cemetery.props.length < 0.35,
+  `no model dominates the map (most common is "${topKey}" at ${topN}/${cemetery.props.length})`);
+
+// ---- 5. the guard comment is still there ------------------------------------
 // It is the thing that tells the next person not to repeat this.
 check(
   /Add new cases ABOVE this comment, never between here and `default:`/.test(fn),
