@@ -33,9 +33,11 @@ Consequences that matter for play:
   * The family plots use LOW walls (1.1m): you can see over them but not walk
     through, so that quadrant reads as cover rather than as another box maze.
 
-Prop count is deliberately less than half the first pass. Clutter is not
-content — 130 props on one field meant no prop was a landmark and the frame was
-soup. Each room now gets the smallest set that still gives hiders real choice.
+Prop count is deliberately sparse. Clutter is not content: 130 props on one
+field meant no prop was a landmark and the frame was soup, and even the second
+pass at ~115 was still dense enough that rooms read as heaps rather than places.
+Each room now gets the smallest set that still gives hiders a real choice —
+roughly two of most things, so a third one is a landmark and not noise.
 
 The client draws its geometry straight from CEMETERY_BLOCKS, and the server's
 occluders are derived from the SAME array, so the two can never drift apart.
@@ -43,6 +45,7 @@ occluders are derived from the SAME array, so the two can never drift apart.
 Deterministic: fixed seed, so re-running produces the identical map.
 """
 import math
+import os
 import random
 
 random.seed(20260803)
@@ -203,6 +206,56 @@ TREES = [(-6.5, 8.0), (6.5, -8.0), (-6.5, -20.0), (6.5, 20.0)]
 for i, (tx, tz) in enumerate(TREES):
     block(tx, tz, 1.1, 1.1, 5.5, "tree", f"tree{i}")
 
+# --- ground surfaces ---------------------------------------------------------
+# Every patch of paving on the map, as data.
+#
+# These are FLUSH decals: they sit at the same height as the ground and win the
+# depth test with a negative zOffset rather than being physically raised, so
+# props standing on them are not sliced off at the ankles. The catch is that two
+# coplanar surfaces with the SAME bias z-fight — the pixels flicker between them
+# as the camera moves, which is what the crossing did when the north-south and
+# east-west lanes were each drawn full-length and overlapped in the middle.
+#
+# So: the cross is cut into three pieces that do not overlap, and the assertion
+# below refuses to emit a layout where any two surfaces share ground.
+FLOORS = []
+
+def floor(cx, cz, w, d, hexcol, kind, z_pri, label):
+    FLOORS.append(dict(cx=round(cx, 2), cz=round(cz, 2), w=round(w, 2), d=round(d, 2),
+                       hex=hexcol, kind=kind, zPri=z_pri, label=label))
+
+LANE_HEX = "#4a4741"
+# The north-south lane runs the full depth; the east-west lane is cut into two
+# arms that stop where the other begins.
+floor(0.0, 0.0, LANE * 2, DEPTH, LANE_HEX, "concrete", -1, "lane_ns")
+floor((MIN_X - LANE) / 2, 0.0, abs(MIN_X) - LANE, LANE * 2, LANE_HEX, "concrete", -1, "lane_w")
+floor((MAX_X + LANE) / 2, 0.0, MAX_X - LANE, LANE * 2, LANE_HEX, "concrete", -1, "lane_e")
+# One surface per room, so you always know which room you are standing in even
+# at a glance in the dark. Each is inset to the room's own quadrant.
+floor(-17.0, 14.75, 25.0, 19.5, "#4f4b45", "concrete", -3, "floor_chapel")
+floor(17.0, 14.75, 25.0, 19.5, "#3f3d39", "concrete", -3, "floor_alley")
+floor(-17.0, -14.75, 25.0, 19.5, "#3d3a33", "concrete", -3, "floor_plots")
+floor(17.0, -14.75, 25.0, 19.5, "#4a3f31", "sand", -3, "floor_yard")
+
+# --- scare anchors -----------------------------------------------------------
+# Places a jumpscare is allowed to come from. Deliberately tied to landmarks —
+# a tomb doorway, the well, the altar — because a noise from a believable place
+# makes a player look there, and a noise from open ground just reads as a bug.
+# (x, z, y) — the height is last because it is the least interesting number.
+SCARE_POINTS = [
+    (-16.5, 22.0, 1.4),   # the chapel altar
+    (-22.0, 13.5, 2.2),   # among the nave columns
+    (-27.0, 15.0, 1.2),   # the collapsed west wall
+    (14.0, 12.0, 2.4),    # west tomb alley
+    (21.0, 18.0, 2.4),    # east tomb alley
+    (17.5, 22.0, 3.0),    # behind the tombs
+    (-23.0, -18.0, 1.0),  # inside a family plot
+    (-11.5, -15.0, 1.0),  # the near plot's gate
+    (10.5, -8.5, 1.6),    # the old well
+    (22.0, -19.0, 3.2),   # the gravedigger's shed roof
+    (0.0, 0.0, 6.5),      # the obelisk, above the crossing
+]
+
 # --- spawns ------------------------------------------------------------------
 # Hunters enter together at the south mouth of the main lane and have to choose
 # a room. Two hiders start in each room, so no room is empty at the whistle.
@@ -283,7 +336,7 @@ for (cx, cz) in ((-20.4, 22.4), (-12.6, 22.4)):
 # Hand-placed and ASSERTED: place() fails silently if something is in the way,
 # and a silently-dropped lantern here means a 12m corridor with no light in it,
 # which is a room players simply do not enter.
-for (lx, lz) in ((14.0, 8.6), (21.0, 8.6), (14.0, 15.0), (21.0, 15.0), (14.0, 21.4), (21.0, 21.4)):
+for (lx, lz) in ((14.0, 8.6), (21.0, 8.6), (14.0, 21.4), (21.0, 21.4)):
     assert place("lantern", lx, lz), f"alley lantern at ({lx},{lz}) was blocked"
     tally("lantern", 1)
 # Braziers at the alley mouths: warmer and taller than a lantern, so from the
@@ -307,65 +360,65 @@ for (lx, lz) in ((-5.2, -19.0), (5.2, 11.0), (-5.2, 17.0), (5.2, -10.0), (-18.0,
 # Placed explicitly rather than scattered: pews in a row is the whole read, and
 # the row spacing has to clear the bench radius (0.85) or half of them get
 # rejected as overlapping and the nave ends up half empty.
-for cz in (10.0, 12.4, 14.8, 17.2, 19.6):
+for cz in (10.4, 13.4, 16.4, 19.4):
     for cx in (-19.6, -13.4):
         tally("bench", 1 if place("bench", cx, cz, 0.0) else 0)
-tally("candelabra", scatter("candelabra", 2, -27, -8, 9.0, 20.0))
+tally("candelabra", scatter("candelabra", 1, -27, -8, 9.0, 20.0))
 # Fallen masonry along the collapsed west wall.
-tally("broken_pillar", scatter("broken_pillar", 3, -28.5, -23.0, 9.0, 22.0))
-tally("urn", scatter("urn", 2, -27, -8, 8.5, 22.5))
-tally("brazier", scatter("brazier", 2, -27, -8, 8.5, 22.5))
-tally("skull", scatter("skull", 2, -28, -8, 8.5, 22.5))
-tally("bat", scatter("bat", 2, -28, -8, 8.5, 22.5))
+tally("broken_pillar", scatter("broken_pillar", 2, -28.5, -23.0, 9.0, 22.0))
+tally("urn", scatter("urn", 1, -27, -8, 8.5, 22.5))
+tally("brazier", scatter("brazier", 1, -27, -8, 8.5, 22.5))
+tally("skull", scatter("skull", 1, -28, -8, 8.5, 22.5))
+tally("bat", scatter("bat", 1, -28, -8, 8.5, 22.5))
 
 # ---- tomb alley: the stone-carving room ------------------------------------
-tally("sarcophagus", scatter("sarcophagus", 3, 6.0, 28.0, 8.5, 23.0))
-tally("angel_statue", scatter("angel_statue", 3, 6.0, 28.0, 8.5, 23.0))
-tally("gargoyle", scatter("gargoyle", 3, 6.0, 28.0, 8.5, 23.0))
+tally("sarcophagus", scatter("sarcophagus", 2, 6.0, 28.0, 8.5, 23.0))
+tally("angel_statue", scatter("angel_statue", 2, 6.0, 28.0, 8.5, 23.0))
+tally("gargoyle", scatter("gargoyle", 2, 6.0, 28.0, 8.5, 23.0))
 tally("coffin_open", scatter("coffin_open", 2, 6.0, 28.0, 8.5, 23.0))
-tally("raven", scatter("raven", 3, 6.0, 28.0, 8.5, 23.0))
-tally("grave_cross", row("grave_cross", 6.2, 8.2, 10.0, 2.0, facing=math.pi))
-tally("urn", row("urn", 6.2, 8.2, 20.0, 2.0, facing=math.pi))
+tally("raven", scatter("raven", 2, 6.0, 28.0, 8.5, 23.0))
+tally("grave_cross", row("grave_cross", 6.4, 8.2, 10.0, 2.4, facing=math.pi))
+tally("urn", row("urn", 6.4, 8.2, 20.0, 2.4, facing=math.pi))
 # Lanterns placed by hand at both alley mouths and the far end. Random scatter
 # left the alleys pitch dark on some seeds, and an unlit corridor is not
 # atmosphere, it is a room nobody enters.
 
 # ---- family plots: the headstone room --------------------------------------
 for (px, pz) in ((-23.0, -18.0), (-11.5, -18.0), (-23.0, -9.0)):
-    tally("headstone", row("headstone", px - 2.6, px + 2.6, pz + 1.4, 2.6, facing=0.0))
-    tally("headstone", row("headstone", px - 2.6, px + 2.6, pz - 1.2, 2.6, facing=0.0))
+    tally("headstone", row("headstone", px - 2.4, px + 2.4, pz + 1.4, 3.2, facing=0.0))
+    tally("headstone", row("headstone", px - 2.4, px + 2.4, pz - 1.2, 3.2, facing=0.0))
 # Warrior graves: a sword driven into the earth and a shield left beside it.
-tally("grave_sword", scatter("grave_sword", 3, -28, -6, -23, -6))
+tally("grave_sword", scatter("grave_sword", 2, -28, -6, -23, -6))
 tally("shield", scatter("shield", 2, -28, -6, -23, -6))
-tally("grave_cross", scatter("grave_cross", 3, -28, -6, -23, -6))
+tally("grave_cross", scatter("grave_cross", 2, -28, -6, -23, -6))
 # No grave flowers: the flower_pot model's blooms are backyard primary reds and
 # yellows, and at night they are the single brightest thing in the quadrant.
 # Realistic for a cemetery, wrong for this one.
-tally("urn", scatter("urn", 3, -28, -6, -23, -6))
-tally("bone_pile", scatter("bone_pile", 2, -28, -6, -23, -6))
-tally("skull", scatter("skull", 2, -28, -6, -23, -6))
+tally("urn", scatter("urn", 1, -28, -6, -23, -6))
+tally("bone_pile", scatter("bone_pile", 1, -28, -6, -23, -6))
+tally("skull", scatter("skull", 1, -28, -6, -23, -6))
 tally("lantern", scatter("lantern", 2, -28, -6, -23, -6))
 
 # ---- gravedigger's yard: the working end of a cemetery ----------------------
 # Was a builder's yard full of crates and tyres, which is the one thing on this
 # map that could have been lifted straight out of the warehouse. It is now where
 # the digging actually happens.
-tally("grave_mound", scatter("grave_mound", 4, 7.0, 28.0, -23.0, -6.5))
-tally("bone_pile", scatter("bone_pile", 4, 7.0, 28.0, -23.0, -6.5))
-tally("skeleton", scatter("skeleton", 3, 7.0, 28.0, -23.0, -6.5))
-tally("coffin", scatter("coffin", 3, 7.0, 28.0, -23.0, -6.5))
+tally("grave_mound", scatter("grave_mound", 3, 7.0, 28.0, -23.0, -6.5))
+tally("bone_pile", scatter("bone_pile", 2, 7.0, 28.0, -23.0, -6.5))
+tally("skeleton", scatter("skeleton", 2, 7.0, 28.0, -23.0, -6.5))
+tally("coffin", scatter("coffin", 2, 7.0, 28.0, -23.0, -6.5))
 tally("cauldron", scatter("cauldron", 2, 7.0, 28.0, -23.0, -6.5))
-tally("jack_o_lantern", scatter("jack_o_lantern", 3, 7.0, 28.0, -23.0, -6.5))
-tally("skull", scatter("skull", 3, 7.0, 28.0, -23.0, -6.5))
+tally("jack_o_lantern", scatter("jack_o_lantern", 2, 7.0, 28.0, -23.0, -6.5))
+tally("skull", scatter("skull", 2, 7.0, 28.0, -23.0, -6.5))
 tally("scarecrow", scatter("scarecrow", 2, 7.0, 28.0, -23.0, -6.5))
 tally("stone_well", 1 if place("stone_well", 10.5, -8.5) else 0)
-tally("brazier", scatter("brazier", 2, 7.0, 28.0, -23.0, -6.5))
+tally("brazier", scatter("brazier", 1, 7.0, 28.0, -23.0, -6.5))
 
 # ---- the lanes: sparse on purpose. This is the space you fight in. ---------
 # A raven on the obelisk steps and one at each lane end. Nothing else: this is
 # the ground you fight over, and a prop standing in it is a hider with nowhere
 # to blend in.
-tally("raven", scatter("raven", 3, -3.4, 3.4, -20, 20))
+tally("raven", scatter("raven", 2, -3.4, 3.4, -20, 20))
 
 # --- verify against the same rules the test suite uses -----------------------
 errs = []
@@ -382,6 +435,30 @@ for p in PROPS:
 for s in BLOCKS:
     if s["h"] <= STEP_HEIGHT:
         errs.append(f"block {s['label']} is walk-through at {s['h']}m")
+
+# Ground surfaces must never overlap another surface drawn at the same depth
+# bias. Two flush coplanar quads with equal zOffset flicker between each other
+# as the camera moves — the shimmer you see is the depth test tie-breaking
+# differently per pixel per frame. Nothing in the renderer can fix that; the
+# layout has to not produce it.
+for i in range(len(FLOORS)):
+    for j in range(i + 1, len(FLOORS)):
+        a, b = FLOORS[i], FLOORS[j]
+        ox = min(a["cx"] + a["w"] / 2, b["cx"] + b["w"] / 2) - max(a["cx"] - a["w"] / 2, b["cx"] - b["w"] / 2)
+        oz = min(a["cz"] + a["d"] / 2, b["cz"] + b["d"] / 2) - max(a["cz"] - a["d"] / 2, b["cz"] - b["d"] / 2)
+        if ox > 0.001 and oz > 0.001 and a["zPri"] == b["zPri"]:
+            errs.append(
+                f"ground surfaces '{a['label']}' and '{b['label']}' overlap by "
+                f"{ox:.2f}x{oz:.2f}m at the same depth bias ({a['zPri']}) — they will z-fight"
+            )
+
+# Scare anchors have to be inside the map and not buried in a wall, or the sound
+# comes from somewhere the player cannot look at.
+for (sx, sz, sy) in SCARE_POINTS:
+    if not (MIN_X + 1.0 < sx < MAX_X - 1.0 and MIN_Z + 1.0 < sz < MAX_Z - 1.0):
+        errs.append(f"scare point ({sx},{sz}) is outside the map")
+    if sy < 0.5 or sy > 8.0:
+        errs.append(f"scare point ({sx},{sz}) has an implausible height {sy}")
 
 # Every spawn must be standable: clear of blocks by at least the player radius.
 PLAYER_R = 0.4
@@ -453,6 +530,39 @@ lines.append("export const CEMETERY_STRUCTURES: Occluder[] = CEMETERY_BLOCKS.map
 lines.append("  occ(b.x, b.z, b.w, b.d, b.h),")
 lines.append(");")
 lines.append("")
+lines.append("/**")
+lines.append(" * Flush ground surfaces — paving laid at ground level, drawn with a negative")
+lines.append(" * depth bias instead of being physically raised (a raised plane slices the")
+lines.append(" * bottoms off props standing on it).")
+lines.append(" *")
+lines.append(" * No two entries here overlap at the same `zPri`. That is enforced by")
+lines.append(" * tools/gen_cemetery.py and re-checked in tests/ground-overlap.test.mjs,")
+lines.append(" * because two coplanar quads with the same bias flicker against each other")
+lines.append(" * as the camera moves and there is nothing the renderer can do about it.")
+lines.append(" */")
+lines.append("export interface GroundSurface {")
+lines.append("  x: number;")
+lines.append("  z: number;")
+lines.append("  w: number;")
+lines.append("  d: number;")
+lines.append("  /** Base colour. */")
+lines.append("  hex: string;")
+lines.append('  kind: "concrete" | "sand" | "grass";')
+lines.append("  /** Depth bias. More negative draws in front. */")
+lines.append("  zPri: number;")
+lines.append("}")
+lines.append("")
+lines.append("export const CEMETERY_FLOORS: GroundSurface[] = [")
+for f in FLOORS:
+    lines.append(f'  {{ x: {f["cx"]}, z: {f["cz"]}, w: {f["w"]}, d: {f["d"]}, hex: "{f["hex"]}", kind: "{f["kind"]}", zPri: {f["zPri"]} }}, // {f["label"]}')
+lines.append("];")
+lines.append("")
+lines.append("/** Places a jumpscare may come from — landmarks, not open ground. */")
+lines.append("export const CEMETERY_SCARE_POINTS: Array<{ x: number; y: number; z: number }> = [")
+for (sx, sz, sy) in SCARE_POINTS:
+    lines.append(f"  {{ x: {sx}, y: {sy}, z: {sz} }},")
+lines.append("];")
+lines.append("")
 lines.append("/** Dead trees (x, z) — the client draws trunks and bare branches here. */")
 lines.append("export const CEMETERY_TREES: Array<[number, number]> = [")
 lines.append("  " + ", ".join(f"[{x}, {z}]" for x, z in TREES) + ",")
@@ -480,13 +590,23 @@ for i, p in enumerate(PROPS):
     lines.append(f'    {{ id: "c{i:02d}", modelKey: "{p["model"]}", x: {p["x"]}, y: 0, z: {p["z"]}, ry: {p["ry"]} }},')
 lines.append("  ],")
 lines.append("  occluders: CEMETERY_STRUCTURES,")
+lines.append("  scarePoints: CEMETERY_SCARE_POINTS,")
 lines.append("};")
 
-open("/tmp/spawn/cemetery_block.ts", "w").write("\n".join(lines) + "\n")
+# Written next to this script, not to a scratch path: `python3
+# tools/gen_cemetery.py` has to work from a fresh clone. Paste the contents into
+# packages/shared/src/maps.ts, replacing the block between the "Hollow Row's
+# solid geometry" comment and the MAP_ORDER declaration.
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cemetery_block.generated.ts")
+with open(OUT, "w") as fh:
+    fh.write("\n".join(lines) + "\n")
 
 from collections import Counter
+print(f"wrote      : {OUT}")
 print(f"map        : {WIDTH:.0f} x {DEPTH:.0f} m, diagonal {math.hypot(WIDTH, DEPTH):.1f} m")
 print(f"blocks     : {len(BLOCKS)}")
+print(f"floors     : {len(FLOORS)} ground surfaces, none overlapping at the same depth bias")
+print(f"scare pts  : {len(SCARE_POINTS)}")
 print(f"props total: {len(PROPS)}")
 print("prop mix   :", ", ".join(f"{k} x{v}" for k, v in Counter(p['model'] for p in PROPS).most_common()))
 print(f"walkable   : {len(seen)} cells reachable from the hunters' start; all 8 prop spawns connected")

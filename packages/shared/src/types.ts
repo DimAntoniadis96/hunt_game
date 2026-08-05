@@ -63,6 +63,7 @@ export const ServerMessage = {
   Flashbang: "flashbang", // close-range prop flash / hunter blind effect
   Whistle: "whistle", // a prop's auto-whistle locator (with world position)
   WorldSound: "world_sound", // anything that makes a noise at a place on the map
+  Scare: "scare", // ambient horror event; scenery, never a gameplay effect
   Error: "error",
 } as const;
 export type ServerMessageName =
@@ -178,6 +179,17 @@ export interface RoundEventPayload {
  * Something audible happened at (x, y, z). Every client receives this and mixes
  * it by their own distance — see WORLD_SOUNDS in sound.ts.
  */
+/**
+ * An ambient scare. Carries no gameplay state at all — the client may ignore it
+ * entirely and the round plays out identically.
+ */
+export interface ScarePayload {
+  kind: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface WorldSoundPayload {
   kind: string;
   x: number;

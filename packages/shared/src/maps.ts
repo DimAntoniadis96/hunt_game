@@ -76,6 +76,12 @@ export interface MapDefinition {
   props: PropSpawn[];
   /** Solid structures that block line-of-sight for shots + melee. */
   occluders: Occluder[];
+  /**
+   * Landmarks an ambient scare may be fired from. Absent on maps that do not
+   * have scares — the server treats a missing or empty list as "no scares here",
+   * so this stays entirely opt-in per map.
+   */
+  scarePoints?: Array<{ x: number; y: number; z: number }>;
 }
 
 /** Build an Occluder from footprint centre (cx,cz), width W (x), depth D (z), height H. */
@@ -504,6 +510,53 @@ export const CEMETERY_STRUCTURES: Occluder[] = CEMETERY_BLOCKS.map((b) =>
   occ(b.x, b.z, b.w, b.d, b.h),
 );
 
+/**
+ * Flush ground surfaces — paving laid at ground level, drawn with a negative
+ * depth bias instead of being physically raised (a raised plane slices the
+ * bottoms off props standing on it).
+ *
+ * No two entries here overlap at the same `zPri`. That is enforced by
+ * tools/gen_cemetery.py and re-checked in tests/ground-overlap.test.mjs,
+ * because two coplanar quads with the same bias flicker against each other
+ * as the camera moves and there is nothing the renderer can do about it.
+ */
+export interface GroundSurface {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  /** Base colour. */
+  hex: string;
+  kind: "concrete" | "sand" | "grass";
+  /** Depth bias. More negative draws in front. */
+  zPri: number;
+}
+
+export const CEMETERY_FLOORS: GroundSurface[] = [
+  { x: 0.0, z: 0.0, w: 8.0, d: 50.0, hex: "#4a4741", kind: "concrete", zPri: -1 }, // lane_ns
+  { x: -17.0, z: 0.0, w: 26.0, d: 8.0, hex: "#4a4741", kind: "concrete", zPri: -1 }, // lane_w
+  { x: 17.0, z: 0.0, w: 26.0, d: 8.0, hex: "#4a4741", kind: "concrete", zPri: -1 }, // lane_e
+  { x: -17.0, z: 14.75, w: 25.0, d: 19.5, hex: "#4f4b45", kind: "concrete", zPri: -3 }, // floor_chapel
+  { x: 17.0, z: 14.75, w: 25.0, d: 19.5, hex: "#3f3d39", kind: "concrete", zPri: -3 }, // floor_alley
+  { x: -17.0, z: -14.75, w: 25.0, d: 19.5, hex: "#3d3a33", kind: "concrete", zPri: -3 }, // floor_plots
+  { x: 17.0, z: -14.75, w: 25.0, d: 19.5, hex: "#4a3f31", kind: "sand", zPri: -3 }, // floor_yard
+];
+
+/** Places a jumpscare may come from — landmarks, not open ground. */
+export const CEMETERY_SCARE_POINTS: Array<{ x: number; y: number; z: number }> = [
+  { x: -16.5, y: 1.4, z: 22.0 },
+  { x: -22.0, y: 2.2, z: 13.5 },
+  { x: -27.0, y: 1.2, z: 15.0 },
+  { x: 14.0, y: 2.4, z: 12.0 },
+  { x: 21.0, y: 2.4, z: 18.0 },
+  { x: 17.5, y: 3.0, z: 22.0 },
+  { x: -23.0, y: 1.0, z: -18.0 },
+  { x: -11.5, y: 1.0, z: -15.0 },
+  { x: 10.5, y: 1.6, z: -8.5 },
+  { x: 22.0, y: 3.2, z: -19.0 },
+  { x: 0.0, y: 6.5, z: 0.0 },
+];
+
 /** Dead trees (x, z) — the client draws trunks and bare branches here. */
 export const CEMETERY_TREES: Array<[number, number]> = [
   [-6.5, 8.0], [6.5, -8.0], [-6.5, -20.0], [6.5, 20.0],
@@ -543,120 +596,88 @@ export const HOLLOW_ROW: MapDefinition = {
     { id: "c01", modelKey: "candelabra", x: -12.6, y: 0, z: 22.4, ry: 1.515 },
     { id: "c02", modelKey: "lantern", x: 14.0, y: 0, z: 8.6, ry: 3.964 },
     { id: "c03", modelKey: "lantern", x: 21.0, y: 0, z: 8.6, ry: 0.4 },
-    { id: "c04", modelKey: "lantern", x: 14.0, y: 0, z: 15.0, ry: 1.896 },
-    { id: "c05", modelKey: "lantern", x: 21.0, y: 0, z: 15.0, ry: 4.121 },
-    { id: "c06", modelKey: "lantern", x: 14.0, y: 0, z: 21.4, ry: 4.264 },
-    { id: "c07", modelKey: "lantern", x: 21.0, y: 0, z: 21.4, ry: 4.457 },
-    { id: "c08", modelKey: "brazier", x: 14.0, y: 0, z: 22.6, ry: 5.31 },
-    { id: "c09", modelKey: "brazier", x: 21.0, y: 0, z: 22.6, ry: 4.905 },
-    { id: "c10", modelKey: "lantern", x: -5.2, y: 0, z: -19.0, ry: 1.155 },
-    { id: "c11", modelKey: "lantern", x: 5.2, y: 0, z: 11.0, ry: 0.902 },
-    { id: "c12", modelKey: "lantern", x: -5.2, y: 0, z: 17.0, ry: 5.44 },
-    { id: "c13", modelKey: "lantern", x: 5.2, y: 0, z: -10.0, ry: 3.598 },
-    { id: "c14", modelKey: "lantern", x: -18.0, y: 0, z: -5.3, ry: 3.666 },
-    { id: "c15", modelKey: "lantern", x: 13.0, y: 0, z: 5.3, ry: 5.56 },
-    { id: "c16", modelKey: "bench", x: -19.6, y: 0, z: 10.0, ry: 0.0 },
-    { id: "c17", modelKey: "bench", x: -13.4, y: 0, z: 10.0, ry: 0.0 },
-    { id: "c18", modelKey: "bench", x: -19.6, y: 0, z: 12.4, ry: 0.0 },
-    { id: "c19", modelKey: "bench", x: -19.6, y: 0, z: 14.8, ry: 0.0 },
-    { id: "c20", modelKey: "bench", x: -13.4, y: 0, z: 14.8, ry: 0.0 },
-    { id: "c21", modelKey: "bench", x: -19.6, y: 0, z: 17.2, ry: 0.0 },
-    { id: "c22", modelKey: "bench", x: -19.6, y: 0, z: 19.6, ry: 0.0 },
-    { id: "c23", modelKey: "candelabra", x: -8.22, y: 0, z: 19.13, ry: 5.965 },
-    { id: "c24", modelKey: "candelabra", x: -9.72, y: 0, z: 17.36, ry: 3.944 },
-    { id: "c25", modelKey: "broken_pillar", x: -25.54, y: 0, z: 17.63, ry: 1.025 },
-    { id: "c26", modelKey: "broken_pillar", x: -24.59, y: 0, z: 16.67, ry: 0.386 },
-    { id: "c27", modelKey: "broken_pillar", x: -23.54, y: 0, z: 12.25, ry: 0.463 },
-    { id: "c28", modelKey: "urn", x: -24.37, y: 0, z: 15.42, ry: 2.546 },
-    { id: "c29", modelKey: "urn", x: -16.59, y: 0, z: 20.26, ry: 4.877 },
-    { id: "c30", modelKey: "brazier", x: -8.1, y: 0, z: 21.4, ry: 0.479 },
-    { id: "c31", modelKey: "brazier", x: -26.78, y: 0, z: 9.5, ry: 3.015 },
-    { id: "c32", modelKey: "skull", x: -20.83, y: 0, z: 13.73, ry: 5.624 },
-    { id: "c33", modelKey: "skull", x: -9.56, y: 0, z: 11.84, ry: 0.657 },
-    { id: "c34", modelKey: "bat", x: -17.0, y: 0, z: 15.78, ry: 0.533 },
-    { id: "c35", modelKey: "bat", x: -24.14, y: 0, z: 20.43, ry: 4.559 },
-    { id: "c36", modelKey: "sarcophagus", x: 6.12, y: 0, z: 17.13, ry: 5.932 },
-    { id: "c37", modelKey: "sarcophagus", x: 26.91, y: 0, z: 21.76, ry: 1.299 },
-    { id: "c38", modelKey: "sarcophagus", x: 6.75, y: 0, z: 11.69, ry: 6.089 },
-    { id: "c39", modelKey: "angel_statue", x: 7.66, y: 0, z: 22.83, ry: 0.408 },
-    { id: "c40", modelKey: "angel_statue", x: 27.87, y: 0, z: 19.36, ry: 2.122 },
-    { id: "c41", modelKey: "angel_statue", x: 13.8, y: 0, z: 16.55, ry: 1.579 },
-    { id: "c42", modelKey: "gargoyle", x: 6.37, y: 0, z: 22.43, ry: 1.457 },
-    { id: "c43", modelKey: "gargoyle", x: 6.02, y: 0, z: 14.57, ry: 0.975 },
-    { id: "c44", modelKey: "gargoyle", x: 12.34, y: 0, z: 21.39, ry: 0.255 },
-    { id: "c45", modelKey: "coffin_open", x: 16.15, y: 0, z: 21.77, ry: 4.996 },
-    { id: "c46", modelKey: "coffin_open", x: 23.03, y: 0, z: 22.41, ry: 1.2 },
-    { id: "c47", modelKey: "raven", x: 13.85, y: 0, z: 18.56, ry: 2.185 },
-    { id: "c48", modelKey: "raven", x: 27.89, y: 0, z: 13.81, ry: 4.307 },
-    { id: "c49", modelKey: "raven", x: 10.61, y: 0, z: 22.26, ry: 1.364 },
-    { id: "c50", modelKey: "grave_cross", x: 6.32, y: 0, z: 10.06, ry: 3.105 },
-    { id: "c51", modelKey: "headstone", x: -25.54, y: 0, z: -16.48, ry: -0.038 },
-    { id: "c52", modelKey: "headstone", x: -23.12, y: 0, z: -16.43, ry: -0.022 },
-    { id: "c53", modelKey: "headstone", x: -20.23, y: 0, z: -16.77, ry: 0.032 },
-    { id: "c54", modelKey: "headstone", x: -25.71, y: 0, z: -19.29, ry: -0.002 },
-    { id: "c55", modelKey: "headstone", x: -22.83, y: 0, z: -19.04, ry: -0.012 },
-    { id: "c56", modelKey: "headstone", x: -20.31, y: 0, z: -19.08, ry: 0.016 },
-    { id: "c57", modelKey: "headstone", x: -14.15, y: 0, z: -16.75, ry: 0.031 },
-    { id: "c58", modelKey: "headstone", x: -11.5, y: 0, z: -16.45, ry: -0.029 },
-    { id: "c59", modelKey: "headstone", x: -8.76, y: 0, z: -16.58, ry: -0.002 },
-    { id: "c60", modelKey: "headstone", x: -14.24, y: 0, z: -19.16, ry: 0.026 },
-    { id: "c61", modelKey: "headstone", x: -11.67, y: 0, z: -19.1, ry: -0.034 },
-    { id: "c62", modelKey: "headstone", x: -9.07, y: 0, z: -19.11, ry: -0.028 },
-    { id: "c63", modelKey: "headstone", x: -25.74, y: 0, z: -7.53, ry: 0.035 },
-    { id: "c64", modelKey: "headstone", x: -23.16, y: 0, z: -7.63, ry: -0.032 },
-    { id: "c65", modelKey: "headstone", x: -20.37, y: 0, z: -7.74, ry: 0.003 },
-    { id: "c66", modelKey: "headstone", x: -25.7, y: 0, z: -10.16, ry: -0.032 },
-    { id: "c67", modelKey: "headstone", x: -23.01, y: 0, z: -10.34, ry: -0.0 },
-    { id: "c68", modelKey: "headstone", x: -20.33, y: 0, z: -10.34, ry: 0.037 },
-    { id: "c69", modelKey: "grave_sword", x: -16.49, y: 0, z: -11.32, ry: 4.867 },
-    { id: "c70", modelKey: "grave_sword", x: -21.53, y: 0, z: -7.21, ry: 4.142 },
-    { id: "c71", modelKey: "grave_sword", x: -9.8, y: 0, z: -7.32, ry: 2.532 },
-    { id: "c72", modelKey: "shield", x: -15.02, y: 0, z: -8.69, ry: 2.623 },
-    { id: "c73", modelKey: "shield", x: -12.23, y: 0, z: -22.83, ry: 5.3 },
-    { id: "c74", modelKey: "grave_cross", x: -18.17, y: 0, z: -20.82, ry: 4.829 },
-    { id: "c75", modelKey: "grave_cross", x: -23.93, y: 0, z: -18.52, ry: 6.211 },
-    { id: "c76", modelKey: "grave_cross", x: -12.75, y: 0, z: -16.54, ry: 5.894 },
-    { id: "c77", modelKey: "urn", x: -12.3, y: 0, z: -6.02, ry: 2.195 },
-    { id: "c78", modelKey: "urn", x: -11.03, y: 0, z: -17.64, ry: 1.589 },
-    { id: "c79", modelKey: "urn", x: -15.81, y: 0, z: -7.83, ry: 2.089 },
-    { id: "c80", modelKey: "bone_pile", x: -6.2, y: 0, z: -12.55, ry: 3.184 },
-    { id: "c81", modelKey: "bone_pile", x: -13.48, y: 0, z: -12.0, ry: 5.237 },
-    { id: "c82", modelKey: "skull", x: -21.79, y: 0, z: -13.64, ry: 6.239 },
-    { id: "c83", modelKey: "skull", x: -17.96, y: 0, z: -14.07, ry: 4.9 },
-    { id: "c84", modelKey: "lantern", x: -13.76, y: 0, z: -22.48, ry: 2.161 },
-    { id: "c85", modelKey: "lantern", x: -12.26, y: 0, z: -10.67, ry: 5.972 },
-    { id: "c86", modelKey: "grave_mound", x: 9.58, y: 0, z: -6.54, ry: 2.023 },
-    { id: "c87", modelKey: "grave_mound", x: 14.69, y: 0, z: -10.92, ry: 0.369 },
-    { id: "c88", modelKey: "grave_mound", x: 10.99, y: 0, z: -20.97, ry: 3.571 },
-    { id: "c89", modelKey: "grave_mound", x: 25.28, y: 0, z: -11.91, ry: 3.358 },
-    { id: "c90", modelKey: "bone_pile", x: 14.03, y: 0, z: -7.84, ry: 5.596 },
-    { id: "c91", modelKey: "bone_pile", x: 7.42, y: 0, z: -18.51, ry: 0.051 },
-    { id: "c92", modelKey: "bone_pile", x: 27.36, y: 0, z: -16.23, ry: 5.719 },
-    { id: "c93", modelKey: "bone_pile", x: 11.42, y: 0, z: -17.85, ry: 4.072 },
-    { id: "c94", modelKey: "skeleton", x: 10.86, y: 0, z: -22.9, ry: 1.584 },
-    { id: "c95", modelKey: "skeleton", x: 19.74, y: 0, z: -11.93, ry: 5.904 },
-    { id: "c96", modelKey: "skeleton", x: 8.34, y: 0, z: -17.39, ry: 4.187 },
-    { id: "c97", modelKey: "coffin", x: 20.22, y: 0, z: -14.96, ry: 0.916 },
-    { id: "c98", modelKey: "coffin", x: 10.05, y: 0, z: -16.2, ry: 5.69 },
-    { id: "c99", modelKey: "coffin", x: 16.05, y: 0, z: -16.67, ry: 5.413 },
-    { id: "c100", modelKey: "cauldron", x: 12.51, y: 0, z: -10.32, ry: 5.742 },
-    { id: "c101", modelKey: "cauldron", x: 19.62, y: 0, z: -9.3, ry: 0.262 },
-    { id: "c102", modelKey: "jack_o_lantern", x: 27.84, y: 0, z: -19.85, ry: 4.382 },
-    { id: "c103", modelKey: "jack_o_lantern", x: 17.03, y: 0, z: -19.18, ry: 6.17 },
-    { id: "c104", modelKey: "jack_o_lantern", x: 9.24, y: 0, z: -19.1, ry: 1.202 },
-    { id: "c105", modelKey: "skull", x: 12.34, y: 0, z: -15.23, ry: 0.098 },
-    { id: "c106", modelKey: "skull", x: 17.53, y: 0, z: -8.89, ry: 2.068 },
-    { id: "c107", modelKey: "skull", x: 11.23, y: 0, z: -19.11, ry: 3.575 },
-    { id: "c108", modelKey: "scarecrow", x: 26.89, y: 0, z: -18.3, ry: 6.195 },
-    { id: "c109", modelKey: "scarecrow", x: 13.81, y: 0, z: -16.66, ry: 0.38 },
-    { id: "c110", modelKey: "stone_well", x: 10.5, y: 0, z: -8.5, ry: 5.484 },
-    { id: "c111", modelKey: "brazier", x: 22.61, y: 0, z: -12.09, ry: 1.247 },
-    { id: "c112", modelKey: "brazier", x: 17.64, y: 0, z: -14.92, ry: 2.866 },
-    { id: "c113", modelKey: "raven", x: 1.92, y: 0, z: 9.61, ry: 5.447 },
-    { id: "c114", modelKey: "raven", x: 0.87, y: 0, z: -10.34, ry: 5.314 },
-    { id: "c115", modelKey: "raven", x: 2.17, y: 0, z: -6.83, ry: 4.461 },
+    { id: "c04", modelKey: "lantern", x: 14.0, y: 0, z: 21.4, ry: 1.896 },
+    { id: "c05", modelKey: "lantern", x: 21.0, y: 0, z: 21.4, ry: 4.121 },
+    { id: "c06", modelKey: "brazier", x: 14.0, y: 0, z: 22.6, ry: 4.264 },
+    { id: "c07", modelKey: "brazier", x: 21.0, y: 0, z: 22.6, ry: 4.457 },
+    { id: "c08", modelKey: "lantern", x: -5.2, y: 0, z: -19.0, ry: 5.31 },
+    { id: "c09", modelKey: "lantern", x: 5.2, y: 0, z: 11.0, ry: 4.905 },
+    { id: "c10", modelKey: "lantern", x: -5.2, y: 0, z: 17.0, ry: 1.155 },
+    { id: "c11", modelKey: "lantern", x: 5.2, y: 0, z: -10.0, ry: 0.902 },
+    { id: "c12", modelKey: "lantern", x: -18.0, y: 0, z: -5.3, ry: 5.44 },
+    { id: "c13", modelKey: "lantern", x: 13.0, y: 0, z: 5.3, ry: 3.598 },
+    { id: "c14", modelKey: "bench", x: -19.6, y: 0, z: 10.4, ry: 0.0 },
+    { id: "c15", modelKey: "bench", x: -13.4, y: 0, z: 10.4, ry: 0.0 },
+    { id: "c16", modelKey: "bench", x: -19.6, y: 0, z: 13.4, ry: 0.0 },
+    { id: "c17", modelKey: "bench", x: -13.4, y: 0, z: 13.4, ry: 0.0 },
+    { id: "c18", modelKey: "bench", x: -19.6, y: 0, z: 16.4, ry: 0.0 },
+    { id: "c19", modelKey: "bench", x: -13.4, y: 0, z: 16.4, ry: 0.0 },
+    { id: "c20", modelKey: "bench", x: -19.6, y: 0, z: 19.4, ry: 0.0 },
+    { id: "c21", modelKey: "candelabra", x: -15.91, y: 0, z: 18.73, ry: 6.211 },
+    { id: "c22", modelKey: "broken_pillar", x: -23.43, y: 0, z: 21.34, ry: 4.322 },
+    { id: "c23", modelKey: "broken_pillar", x: -25.57, y: 0, z: 20.82, ry: 4.776 },
+    { id: "c24", modelKey: "urn", x: -15.07, y: 0, z: 9.52, ry: 5.942 },
+    { id: "c25", modelKey: "brazier", x: -8.12, y: 0, z: 14.56, ry: 3.381 },
+    { id: "c26", modelKey: "skull", x: -25.24, y: 0, z: 15.42, ry: 2.546 },
+    { id: "c27", modelKey: "bat", x: -17.05, y: 0, z: 20.26, ry: 4.877 },
+    { id: "c28", modelKey: "sarcophagus", x: 8.42, y: 0, z: 21.87, ry: 1.498 },
+    { id: "c29", modelKey: "sarcophagus", x: 19.09, y: 0, z: 22.19, ry: 5.773 },
+    { id: "c30", modelKey: "angel_statue", x: 6.96, y: 0, z: 22.93, ry: 3.156 },
+    { id: "c31", modelKey: "angel_statue", x: 20.95, y: 0, z: 12.07, ry: 3.909 },
+    { id: "c32", modelKey: "gargoyle", x: 11.65, y: 0, z: 22.28, ry: 5.746 },
+    { id: "c33", modelKey: "gargoyle", x: 27.78, y: 0, z: 18.61, ry: 3.713 },
+    { id: "c34", modelKey: "coffin_open", x: 6.75, y: 0, z: 11.69, ry: 6.089 },
+    { id: "c35", modelKey: "coffin_open", x: 27.45, y: 0, z: 22.53, ry: 2.742 },
+    { id: "c36", modelKey: "raven", x: 14.19, y: 0, z: 18.05, ry: 6.113 },
+    { id: "c37", modelKey: "raven", x: 22.49, y: 0, z: 8.9, ry: 1.483 },
+    { id: "c38", modelKey: "grave_cross", x: 6.47, y: 0, z: 10.01, ry: 3.112 },
+    { id: "c39", modelKey: "headstone", x: -25.27, y: 0, z: -16.65, ry: 0.039 },
+    { id: "c40", modelKey: "headstone", x: -22.03, y: 0, z: -16.53, ry: -0.04 },
+    { id: "c41", modelKey: "headstone", x: -25.43, y: 0, z: -19.32, ry: -0.017 },
+    { id: "c42", modelKey: "headstone", x: -22.06, y: 0, z: -19.37, ry: -0.02 },
+    { id: "c43", modelKey: "headstone", x: -13.84, y: 0, z: -16.43, ry: -0.019 },
+    { id: "c44", modelKey: "headstone", x: -10.74, y: 0, z: -16.49, ry: -0.036 },
+    { id: "c45", modelKey: "headstone", x: -13.98, y: 0, z: -19.3, ry: 0.014 },
+    { id: "c46", modelKey: "headstone", x: -10.56, y: 0, z: -19.08, ry: 0.03 },
+    { id: "c47", modelKey: "headstone", x: -25.36, y: 0, z: -7.54, ry: 0.026 },
+    { id: "c48", modelKey: "headstone", x: -22.36, y: 0, z: -7.65, ry: -0.027 },
+    { id: "c49", modelKey: "headstone", x: -25.43, y: 0, z: -10.23, ry: 0.034 },
+    { id: "c50", modelKey: "headstone", x: -22.02, y: 0, z: -10.26, ry: -0.004 },
+    { id: "c51", modelKey: "grave_sword", x: -6.29, y: 0, z: -17.74, ry: 3.572 },
+    { id: "c52", modelKey: "grave_sword", x: -8.9, y: 0, z: -8.47, ry: 0.293 },
+    { id: "c53", modelKey: "shield", x: -6.48, y: 0, z: -11.83, ry: 1.264 },
+    { id: "c54", modelKey: "shield", x: -19.82, y: 0, z: -16.65, ry: 4.386 },
+    { id: "c55", modelKey: "grave_cross", x: -15.17, y: 0, z: -12.14, ry: 0.475 },
+    { id: "c56", modelKey: "grave_cross", x: -7.61, y: 0, z: -8.64, ry: 1.131 },
+    { id: "c57", modelKey: "urn", x: -15.98, y: 0, z: -13.45, ry: 3.78 },
+    { id: "c58", modelKey: "bone_pile", x: -8.74, y: 0, z: -12.24, ry: 4.093 },
+    { id: "c59", modelKey: "skull", x: -7.01, y: 0, z: -9.58, ry: 1.53 },
+    { id: "c60", modelKey: "lantern", x: -19.61, y: 0, z: -19.34, ry: 4.976 },
+    { id: "c61", modelKey: "lantern", x: -11.85, y: 0, z: -22.3, ry: 4.003 },
+    { id: "c62", modelKey: "grave_mound", x: 9.23, y: 0, z: -16.02, ry: 0.912 },
+    { id: "c63", modelKey: "grave_mound", x: 23.53, y: 0, z: -10.62, ry: 1.502 },
+    { id: "c64", modelKey: "grave_mound", x: 23.27, y: 0, z: -14.03, ry: 5.597 },
+    { id: "c65", modelKey: "bone_pile", x: 20.2, y: 0, z: -13.29, ry: 0.766 },
+    { id: "c66", modelKey: "bone_pile", x: 17.08, y: 0, z: -19.38, ry: 2.754 },
+    { id: "c67", modelKey: "skeleton", x: 8.58, y: 0, z: -22.35, ry: 6.192 },
+    { id: "c68", modelKey: "skeleton", x: 21.61, y: 0, z: -13.17, ry: 3.373 },
+    { id: "c69", modelKey: "coffin", x: 23.26, y: 0, z: -7.17, ry: 1.2 },
+    { id: "c70", modelKey: "coffin", x: 12.19, y: 0, z: -16.47, ry: 1.675 },
+    { id: "c71", modelKey: "cauldron", x: 18.45, y: 0, z: -11.17, ry: 2.246 },
+    { id: "c72", modelKey: "cauldron", x: 17.12, y: 0, z: -6.91, ry: 3.377 },
+    { id: "c73", modelKey: "jack_o_lantern", x: 12.75, y: 0, z: -11.05, ry: 3.319 },
+    { id: "c74", modelKey: "jack_o_lantern", x: 14.5, y: 0, z: -11.55, ry: 2.185 },
+    { id: "c75", modelKey: "skull", x: 27.89, y: 0, z: -16.95, ry: 4.307 },
+    { id: "c76", modelKey: "skull", x: 12.42, y: 0, z: -17.98, ry: 4.803 },
+    { id: "c77", modelKey: "scarecrow", x: 11.86, y: 0, z: -21.66, ry: 1.61 },
+    { id: "c78", modelKey: "scarecrow", x: 12.76, y: 0, z: -7.79, ry: 1.878 },
+    { id: "c79", modelKey: "stone_well", x: 10.5, y: 0, z: -8.5, ry: 3.683 },
+    { id: "c80", modelKey: "brazier", x: 21.07, y: 0, z: -6.9, ry: 2.068 },
+    { id: "c81", modelKey: "raven", x: -3.08, y: 0, z: -15.75, ry: 0.63 },
+    { id: "c82", modelKey: "raven", x: -0.48, y: 0, z: -5.16, ry: 2.687 },
   ],
   occluders: CEMETERY_STRUCTURES,
+  scarePoints: CEMETERY_SCARE_POINTS,
 };
 
 /** Every map in the order players should see them offered. */

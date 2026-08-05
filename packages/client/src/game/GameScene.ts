@@ -3,6 +3,7 @@ import {
   Scene,
   Vector3,
   Color3,
+  Color4,
   Mesh,
   MeshBuilder,
   StandardMaterial,
@@ -28,6 +29,10 @@ import {
   WHISTLE_AUDIBLE_RANGE,
   WHISTLE_MIN_VOLUME,
   worldSoundVolume,
+  SCARES,
+  SCARE_VISUAL_MS,
+  scareVolume,
+  type ScareKind,
   type WorldSoundKind,
   type DecoyView,
   type PlayerView,
@@ -56,6 +61,15 @@ const WORLD_SOUND_SFX: Record<string, Sfx | [Sfx, Sfx]> = {
   flash: "flash",
 };
 
+/** Which synthesised voice each ambient scare plays. */
+const SCARE_SFX: Record<ScareKind, Sfx> = {
+  bats: "scare_bats",
+  crow: "scare_crow",
+  whisper: "scare_whisper",
+  groan: "scare_groan",
+  thunder: "scare_thunder",
+};
+
 interface Visual {
   node: TransformNode;
   key: string;
@@ -65,6 +79,12 @@ export class GameScene {
   private engine: Engine;
   private scene: Scene;
   private glow: GlowLayer | null = null;
+  /**
+   * Live scare visuals. Each entry advances every frame and disposes itself
+   * when it expires. Kept in one list so dispose() can tear them all down —
+   * a scare that outlives its scene leaves meshes pointing at a dead context.
+   */
+  private scareFx: Array<{ until: number; step: (k: number) => void; kill: () => void }> = [];
   private input: InputController;
   private net: NetworkClient;
   private audio: AudioManager;
@@ -527,6 +547,7 @@ export class GameScene {
 
   private frame() {
     const dt = Math.min(0.05, this.engine.getDeltaTime() / 1000);
+    this.stepScareFx();
     const state = this.room.state as any;
     const me = this.me();
     const phase: Phase = state.phase;
@@ -1012,6 +1033,111 @@ export class GameScene {
     }, 70);
   }
 
+  /**
+   * Advance every live scare visual and retire the finished ones.
+   *
+   * Runs before anything else in the frame so a visual can never be left
+   * half-updated if a later step throws.
+   */
+  private stepScareFx() {
+    if (this.scareFx.length === 0) return;
+    const now = performance.now();
+    for (let i = this.scareFx.length - 1; i >= 0; i--) {
+      const fx = this.scareFx[i];
+      if (now >= fx.until) {
+        fx.kill();
+        this.scareFx.splice(i, 1);
+      } else {
+        fx.step(now);
+      }
+    }
+  }
+
+  /**
+   * Draw a scare. Everything spawned here is non-collidable, non-pickable, out
+   * of the glow layer's include-list and gone inside ~1.5s — a scare must never
+   * become cover, an obstacle, or something a hider can be mistaken for.
+   */
+  private spawnScareVisual(kind: ScareKind, x: number, y: number, z: number) {
+    const visual = SCARES[kind].visual;
+    const life = SCARE_VISUAL_MS[visual];
+    if (visual === "none" || life <= 0) return;
+    // On "low" the glow layer is already off and the budget is tight; a swarm of
+    // extra meshes is exactly the wrong thing to spend it on.
+    const cheap = this.settings.renderQuality === "low";
+    const start = performance.now();
+    const until = start + life;
+
+    if (visual === "flash") {
+      // Sheet lightning: lift the sky for two short beats. Nothing is added to
+      // the scene, so this cannot cost a frame or block a sightline.
+      const sky = this.scene.getLightByName("sky");
+      const baseSky = sky?.intensity ?? 0;
+      const baseClear = this.scene.clearColor.clone();
+      const baseFog = this.scene.fogColor.clone();
+      this.scareFx.push({
+        until,
+        step: (now) => {
+          const t = (now - start) / life;
+          // Two flashes: a bright one, then a weaker afterthought.
+          const pulse = t < 0.09 ? 1 - t / 0.09 : t > 0.2 && t < 0.3 ? (0.3 - t) / 0.1 * 0.55 : 0;
+          if (sky) sky.intensity = baseSky + pulse * 1.5;
+          this.scene.clearColor = baseClear.add(new Color4(pulse * 0.5, pulse * 0.55, pulse * 0.66, 0));
+          this.scene.fogColor = baseFog.add(new Color3(pulse * 0.42, pulse * 0.46, pulse * 0.55));
+        },
+        kill: () => {
+          if (sky) sky.intensity = baseSky;
+          this.scene.clearColor = baseClear;
+          this.scene.fogColor = baseFog;
+        },
+      });
+      return;
+    }
+
+    // bats / crow: small dark bodies that scatter upward and fade.
+    const count = visual === "bats" ? (cheap ? 4 : 11) : 1;
+    const mat = new StandardMaterial(`scareMat${start}`, this.scene);
+    mat.diffuseColor = new Color3(0.06, 0.06, 0.08);
+    mat.emissiveColor = new Color3(0.05, 0.05, 0.07); // well under the 0.6 glow threshold
+    mat.specularColor = new Color3(0, 0, 0);
+    mat.alpha = 0.95;
+    const bodies: Array<{ mesh: Mesh; vx: number; vy: number; vz: number; spin: number }> = [];
+    for (let i = 0; i < count; i++) {
+      const m = MeshBuilder.CreateBox(`scare${start}_${i}`, { width: 0.5, height: 0.08, depth: 0.22 }, this.scene);
+      m.material = mat;
+      m.isPickable = false;
+      m.checkCollisions = false;
+      m.position.set(x + (Math.random() - 0.5) * 1.2, y + Math.random() * 0.5, z + (Math.random() - 0.5) * 1.2);
+      const a = Math.random() * Math.PI * 2;
+      bodies.push({
+        mesh: m,
+        vx: Math.cos(a) * (2.2 + Math.random() * 2.4),
+        vz: Math.sin(a) * (2.2 + Math.random() * 2.4),
+        vy: 2.6 + Math.random() * 2.2,
+        spin: (Math.random() - 0.5) * 14,
+      });
+    }
+    this.scareFx.push({
+      until,
+      step: (now) => {
+        const t = (now - start) / life;
+        for (const b of bodies) {
+          b.mesh.position.x += (b.vx * 16) / 1000;
+          b.mesh.position.y += (b.vy * 16) / 1000;
+          b.mesh.position.z += (b.vz * 16) / 1000;
+          // Wingbeat: flap the body on its roll axis.
+          b.mesh.rotation.z = Math.sin(now * 0.03 + b.spin) * 0.9;
+          b.mesh.rotation.y += b.spin * 0.0006;
+        }
+        mat.alpha = 0.95 * Math.max(0, 1 - t * t);
+      },
+      kill: () => {
+        for (const b of bodies) b.mesh.dispose();
+        mat.dispose();
+      },
+    });
+  }
+
   private spawnMuzzleFlash(pos: Vector3) {
     const s = MeshBuilder.CreateSphere("mflash", { diameter: 0.28, segments: 6 }, this.scene);
     s.position = pos;
@@ -1206,6 +1332,24 @@ export class GameScene {
       this.audio.playSpatial(typeof sfx === "string" ? sfx : sfx[Math.random() < 0.5 ? 0 : 1], vol, pan);
     });
 
+    room.onMessage(ServerMessage.Scare, (m: any) => {
+      // Ambient horror. Deliberately consequence-free: it plays a sound, draws
+      // something for about a second, and touches no game state whatsoever. If
+      // this handler threw and were removed entirely, rounds would play out
+      // identically — which is the property that makes it safe.
+      if (!m || typeof m.kind !== "string" || !(m.kind in SCARES)) return;
+      const kind = m.kind as ScareKind;
+      const x = m.x ?? 0, y = m.y ?? 0, z = m.z ?? 0;
+      const cam = this.input.camera;
+      const dist = Math.hypot(x - cam.position.x, y - cam.position.y, z - cam.position.z);
+      const vol = scareVolume(kind, dist);
+      if (vol > 0) {
+        const { pan } = this.spatialParams(x, y, z, 1);
+        this.audio.playSpatial(SCARE_SFX[kind], vol, SCARES[kind].global ? 0 : pan);
+      }
+      this.spawnScareVisual(kind, x, y, z);
+    });
+
     room.onMessage(ServerMessage.Whistle, (m: any) => {
       // A prop's auto-whistle — play their assigned sound positionally so seekers
       // can locate them (loud when close, fading to silence when far).
@@ -1267,6 +1411,8 @@ export class GameScene {
     this.blindEl = null;
     this.holdCursorFree = false;
     this.input.dispose();
+    for (const fx of this.scareFx) fx.kill();
+    this.scareFx.length = 0;
     this.engine.stopRenderLoop();
     this.scene.dispose();
     this.engine.dispose();

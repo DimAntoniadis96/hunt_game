@@ -12,7 +12,7 @@ import {
   HemisphericLight,
   DirectionalLight,
 } from "@babylonjs/core";
-import { BACKYARD_HEDGES, CEMETERY_BLOCKS, CEMETERY_TREES, PROP_MODELS, type MapDefinition, type Occluder } from "@mimic/shared";
+import { BACKYARD_HEDGES, CEMETERY_BLOCKS, CEMETERY_FLOORS, CEMETERY_TREES, PROP_MODELS, type MapDefinition, type Occluder } from "@mimic/shared";
 
 const matCache = new Map<string, StandardMaterial>();
 
@@ -525,27 +525,29 @@ function buildCemetery(scene: Scene, map: MapDefinition): Mesh[] {
   ground.isPickable = true;
   colliders.push(ground);
 
-  // Flush surfaces, laid dead flat and winning the depth test via a negative
-  // zOffset rather than being physically raised — a raised plane slices the
-  // bottoms off every prop standing on it. The offset goes through texMat so
-  // it is part of the material cache key; mutating a shared cached material
-  // here would leak the offset onto unrelated surfaces.
-  const flat = (name: string, W: number, D: number, x: number, z: number, hex: string, kind: TexKind, zPri: number) => {
-    const m = MeshBuilder.CreateGround(name, { width: W, height: D }, scene);
-    m.position.set(x, 0.002, z);
-    m.material = texMat(scene, hex, kind, Math.max(1, W / 3), Math.max(1, D / 3), 0.05, zPri);
+  // Flush paving, drawn straight from CEMETERY_FLOORS.
+  //
+  // These sit at ground level and win the depth test with a negative zOffset
+  // rather than being physically raised — a raised plane slices the bottoms off
+  // every prop standing on it. The catch is that two coplanar quads with the
+  // SAME bias z-fight: the depth test ties, breaks differently per pixel per
+  // frame, and the ground visibly crawls as you turn. The crossing used to do
+  // exactly that, because the north-south and east-west lanes were each drawn
+  // full length and overlapped in the middle.
+  //
+  // The fix is in the data, not here: the generator emits surfaces that never
+  // overlap at the same bias and refuses to emit ones that do. This loop just
+  // draws what it is given.
+  //
+  // The offset goes through texMat so it is part of the material cache key —
+  // mutating a shared cached material here would leak the offset onto unrelated
+  // surfaces.
+  for (const [i, f] of CEMETERY_FLOORS.entries()) {
+    const m = MeshBuilder.CreateGround(`floor${i}`, { width: f.w, height: f.d }, scene);
+    m.position.set(f.x, 0.002, f.z);
+    m.material = texMat(scene, f.hex, f.kind, Math.max(1, f.w / 3), Math.max(1, f.d / 3), 0.05, f.zPri);
     m.isPickable = false;
-    return m;
-  };
-  // The crossing: two gravel lanes meeting in the middle. This is the only
-  // ground you can cross without entering a room, and it reads as such.
-  flat("lane_ns", 8, d, 0, 0, "#4a4741", "concrete", -1);
-  flat("lane_ew", w, 8, 0, 0, "#4a4741", "concrete", -1);
-  // Room floors — each quadrant gets its own surface so you always know which
-  // room you are standing in, even at a glance in the dark.
-  flat("floor_chapel", 25, 19, -16.5, 14.5, "#4f4b45", "concrete", -3); // nave flagstones
-  flat("floor_alley", 25, 19, 17.0, 14.5, "#3f3d39", "concrete", -3); // tomb gravel
-  flat("floor_yard", 25, 19, 17.0, -14.5, "#4a3f31", "sand", -3); // caretaker's dirt
+  }
 
   // ---- solids ---------------------------------------------------------------
   // Drawn straight from the shared block list. Trees are listed there too (for

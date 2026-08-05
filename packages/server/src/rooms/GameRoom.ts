@@ -8,6 +8,9 @@ import {
   FLASHBANG_RANGE,
   DEFAULT_MAP_ID,
   isMapId,
+  nextScareDelay,
+  pickScare,
+  SCARE_WARMUP_MS,
   GRAVITY,
   MAX_DECOYS_PER_PLAYER,
   HUNT_SECONDS,
@@ -103,6 +106,8 @@ export class GameRoom extends Room<{ state: GameState }> {
   private meta = new Map<string, ClientMeta>();
   private roomCode = "";
   private decoySeq = 0;
+  /** When the next ambient scare is due, or 0 when this map has none. */
+  private nextScareAt = 0;
 
   // ---- lifecycle ----------------------------------------------------------
 
@@ -726,6 +731,7 @@ export class GameRoom extends Room<{ state: GameState }> {
           this.endRound(RoundResult.PropsWin); // survivors win on timeout
         } else if (this.state.phase === Phase.Hunt) {
           this.tickWhistles(now);
+          this.tickScares(now);
         }
         break;
       case Phase.RoundEnd:
@@ -762,6 +768,7 @@ export class GameRoom extends Room<{ state: GameState }> {
   private enterHunt() {
     this.state.phase = Phase.Hunt;
     this.state.phaseEndsAt = Date.now() + HUNT_SECONDS * 1000;
+    this.scheduleScare(SCARE_WARMUP_MS);
     // Give each hider a distinct whistle sound (1-5) for the round, and stagger
     // their first whistle so they don't all sound at once.
     const props = [...this.state.players.values()].filter((p) => p.team === Team.Props && p.alive);
@@ -782,6 +789,40 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   /** Auto-whistle: every alive prop emits a positional locator on a cadence that
    * quickens in the final seconds, so seekers can hunt them down. */
+  /**
+   * Ambient horror events. Pure scenery: this fires a broadcast and touches
+   * nothing else. If a client drops the message the round is unaffected, which
+   * is the property that makes it safe to add to a live game.
+   *
+   * Maps opt in by defining `scarePoints`; everything else runs with
+   * `nextScareAt = 0` and never enters the tick below.
+   */
+  private scheduleScare(minDelayMs: number) {
+    const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
+    const points = map.scarePoints ?? [];
+    if (points.length === 0) {
+      this.nextScareAt = 0;
+      return;
+    }
+    this.nextScareAt = Date.now() + minDelayMs + nextScareDelay(Math.random());
+  }
+
+  private tickScares(now: number) {
+    if (this.nextScareAt === 0 || now < this.nextScareAt) return;
+    const map = MAPS[this.state.mapId] ?? MAPS[DEFAULT_MAP_ID];
+    const points = map.scarePoints ?? [];
+    if (points.length === 0) {
+      this.nextScareAt = 0;
+      return;
+    }
+    const at = points[Math.floor(Math.random() * points.length)];
+    const kind = pickScare(Math.random());
+    // Broadcast, like every other world event: each client mixes it by its own
+    // distance from the source.
+    this.broadcast(ServerMessage.Scare, { kind, x: at.x, y: at.y, z: at.z });
+    this.scheduleScare(0);
+  }
+
   private tickWhistles(now: number) {
     const interval = this.secondsLeft() <= WHISTLE_FAST_UNDER_SECONDS ? WHISTLE_FAST_MS : WHISTLE_INTERVAL_MS;
     this.state.players.forEach((p) => {

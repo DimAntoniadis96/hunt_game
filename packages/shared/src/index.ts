@@ -13,3 +13,4 @@ export * from "./maps.js";
 export * from "./spawn.js";
 export * from "./name.js";
 export * from "./sound.js";
+export * from "./scare.js";

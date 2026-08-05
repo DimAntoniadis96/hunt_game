@@ -33,7 +33,15 @@ export type Sfx =
   | "death1"
   | "death2"
   | "damage1"
-  | "damage2";
+  | "damage2"
+  // Ambient scares. Synthesised rather than sampled on purpose: they must not
+  // resemble any real cue, and building them from oscillators is the surest way
+  // to keep them clear of the whistle and gunshot voices.
+  | "scare_bats"
+  | "scare_crow"
+  | "scare_whisper"
+  | "scare_groan"
+  | "scare_thunder";
 
 /** Looping music tracks (phase-driven, non-spatial, played via HTMLAudioElement). */
 export type Music = "music_lobby" | "music_hide" | "music_hunt";
@@ -540,6 +548,50 @@ export class AudioManager {
         this.tone(1800, 0.16, { type: "sine", slideTo: 4200, gain: 0.34, attack: 0.002, cutoff: 5200 });
         this.tone(420, 0.2, { type: "triangle", slideTo: 120, gain: 0.22, delay: 0.04, cutoff: 1800 });
         break;
+      case "scare_bats": {
+        // A cloud of leathery wingbeats plus a scatter of high squeaks. The
+        // squeaks are detuned against each other so it reads as many animals.
+        for (let i = 0; i < 7; i++) {
+          this.noise(0.07, { gain: 0.2, type: "bandpass", cutoff: 900 + i * 130, delay: i * 0.045 });
+        }
+        for (let i = 0; i < 5; i++) {
+          this.tone(5200 + i * 640, 0.06, { type: "square", slideTo: 3400, gain: 0.1, attack: 0.002, delay: 0.03 + i * 0.07, cutoff: 8000 });
+        }
+        break;
+      }
+      case "scare_crow": {
+        // Two harsh caws, the second lower and shorter, then wingbeats.
+        this.tone(760, 0.2, { type: "sawtooth", slideTo: 380, gain: 0.3, attack: 0.006, cutoff: 2200 });
+        this.noise(0.16, { gain: 0.16, type: "bandpass", cutoff: 1500 });
+        this.tone(640, 0.16, { type: "sawtooth", slideTo: 300, gain: 0.26, attack: 0.006, delay: 0.26, cutoff: 2000 });
+        for (let i = 0; i < 4; i++) {
+          this.noise(0.08, { gain: 0.13, type: "lowpass", cutoff: 700, delay: 0.44 + i * 0.1 });
+        }
+        break;
+      }
+      case "scare_whisper": {
+        // Breath, not voice: narrow filtered noise swelling and dying. No pitch
+        // at all, so it can never be mistaken for a whistle.
+        this.noise(0.5, { gain: 0.17, type: "bandpass", cutoff: 1150 });
+        this.noise(0.42, { gain: 0.12, type: "bandpass", cutoff: 2100, delay: 0.22 });
+        this.tone(190, 0.5, { type: "sine", slideTo: 150, gain: 0.05, attack: 0.2, cutoff: 500 });
+        break;
+      }
+      case "scare_groan": {
+        // A long descending moan with a beat frequency underneath it.
+        this.tone(150, 1.15, { type: "sawtooth", slideTo: 74, gain: 0.2, attack: 0.16, cutoff: 620 });
+        this.tone(157, 1.15, { type: "sine", slideTo: 78, gain: 0.14, attack: 0.2, cutoff: 500 });
+        this.noise(0.9, { gain: 0.07, type: "lowpass", cutoff: 400, delay: 0.1 });
+        break;
+      }
+      case "scare_thunder": {
+        // Crack, then a long low roll that keeps arriving after the flash.
+        this.noise(0.13, { gain: 0.42, type: "highpass", cutoff: 1800 });
+        this.noise(1.5, { gain: 0.36, type: "lowpass", cutoff: 320, delay: 0.06 });
+        this.noise(1.1, { gain: 0.22, type: "lowpass", cutoff: 160, delay: 0.5 });
+        this.tone(58, 1.6, { type: "sine", slideTo: 34, gain: 0.2, attack: 0.05, delay: 0.06, cutoff: 220 });
+        break;
+      }
       case "whistle": {
         // A cheeky "wheet-woo" locator whistle (up then a longer down note).
         this.tone(1500, 0.16, { type: "sine", slideTo: 2250, gain: 0.5, attack: 0.02 });
